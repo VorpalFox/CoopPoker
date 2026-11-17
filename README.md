@@ -5,15 +5,14 @@ Bot Discord de poker coopératif. Chacun reçoit 2 cartes. À chaque tour (pré-
 ## Utilisation
 
 - `/poker create` : ouvre une table dans le salon. Les autres cliquent sur **Rejoindre**, puis **Lancer**.
-- **Tes cartes** : chacun les reçoit en MP au début de la manche. Le MP est mis à jour à chaque tour avec le tableau et ta meilleure main.
-- **🂠 Mes cartes** : affiche tes cartes en privé dans le salon. Pratique si tu bloques les MP des membres du serveur.
+- **🂠 Mes cartes** : affiche tes cartes dans un message caché, visible par toi seul. Un clic par manche suffit : le message se met à jour tout seul à chaque tour avec le tableau et ta meilleure main. Discord limite cette mise à jour à 15 minutes après le clic ; au-delà, il faut re-cliquer.
 - **1..n** : prend une position, même si elle est déjà prise. Re-cliquer sur la sienne la rend.
 - **🔒 Bloquer ma position** : retourne ton jeton, définitivement jusqu'au tour suivant. Plus personne ne peut te le voler, et tu ne peux plus en changer.
 - **Couleurs des positions** : bleu = libre, vert = prise, gris désactivé = bloquée. Dans l'historique, ● = libre et ○ = bloquée.
 - **Tour suivant** : actif quand tout le monde est placé.
 - `/poker table` : réaffiche la table. `/poker stop` : arrête la partie et ferme la table.
 
-Chaque manche occupe 2 messages. En haut, les infos de la manche : règles, n° de manche, score, et un bouton pour le détail des combinaisons (réponse privée). En dessous, la table, modifiée sur place : tableau, historique de la manche, puis résultat. À la manche suivante, ces 2 messages restent et 2 nouveaux sont postés en dessous, pour pouvoir remonter les manches précédentes. Le MP de chaque joueur est réutilisé d'une manche à l'autre.
+Chaque manche occupe 2 messages. En haut, les infos de la manche : règles, n° de manche, score, et un bouton pour le détail des combinaisons (réponse privée). En dessous, la table, modifiée sur place : tableau, historique de la manche, puis résultat. À la manche suivante, ces 2 messages restent et 2 nouveaux sont postés en dessous, pour pouvoir remonter les manches précédentes.
 
 Les parties sont gardées en mémoire : un redémarrage du bot les efface.
 

@@ -31,7 +31,7 @@ const HISTORY_NAME_WIDTH = 12
 const HISTORY_CELL_WIDTH = 8 // largeur de 'Pré-flop', le plus long libellé
 
 const RULES = [
-  '• Chacun reçoit 2 cartes en MP, puis 4 tours : pré-flop, flop, turn, river.',
+  '• Chacun reçoit 2 cartes (bouton 🂠 Mes cartes), puis 4 tours : pré-flop, flop, turn, river.',
   '• À chaque tour, prenez une position : **1 = meilleure main**.',
   '• On peut voler une position, sauf si elle est bloquée (jusqu\'au tour suivant).',
   '• Après la river, **tout le monde gagne si le classement est parfait**.',
@@ -76,10 +76,9 @@ export function renderHandRanking(): BaseMessageOptions {
   return { content: `## 🏆 Combinaisons, de la plus forte à la plus faible\n${HAND_RANKING}` }
 }
 
-// Cartes d'un joueur : en MP à chaque manche, ou en réponse privée au bouton "Mes cartes"
-export function renderHoleCards(game: Game, player: Player, header?: string): BaseMessageOptions {
-  const lines = header ? [header] : []
-  lines.push(`Tes cartes : **${formatCards(player.hole)}**`)
+// Cartes d'un joueur, en message caché (bouton "Mes cartes" ou clic sur Lancer / Rejouer)
+export function renderHoleCards(game: Game, player: Player): BaseMessageOptions {
+  const lines = [`Tes cartes : **${formatCards(player.hole)}**`]
   if (game.board.length > 0) {
     const hand = evaluateHand([...player.hole, ...game.board])
     lines.push(`Tableau : ${formatCards(game.board)}`)
