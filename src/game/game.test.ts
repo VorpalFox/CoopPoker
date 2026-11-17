@@ -82,54 +82,63 @@ describe('Game', () => {
     expect(game.findPlayer('alice')?.history.map(round => round.position)).toEqual([2, 1, 1])
   })
 
-  it('toggleLock_PositionBloquee_PlusPersonneNePeutLaVoler', () => {
+  it('lock_PositionBloquee_PlusPersonneNePeutLaVoler', () => {
     game.start()
     game.takePosition('alice', 1)
-    game.toggleLock('alice')
+    game.lock('alice')
 
     expect(() => game.takePosition('bob', 1)).toThrow(GameError)
     expect(game.findPlayer('alice')?.position).toBe(1)
   })
 
-  it('toggleLock_PositionBloquee_LeDetenteurNePeutPlusEnChanger', () => {
+  it('lock_PositionBloquee_LeDetenteurNePeutPlusEnChanger', () => {
     game.start()
     game.takePosition('alice', 1)
-    game.toggleLock('alice')
+    game.lock('alice')
 
     expect(() => game.takePosition('alice', 2)).toThrow(GameError)
   })
 
-  it('takePosition_SaPositionBloquee_LaDebloqueSansLaRendre', () => {
+  it('takePosition_SaPositionBloquee_NeLaRendPas', () => {
     game.start()
     game.takePosition('alice', 1)
-    game.toggleLock('alice')
+    game.lock('alice')
 
-    game.takePosition('alice', 1)
-
+    expect(() => game.takePosition('alice', 1)).toThrow(GameError)
     expect(game.findPlayer('alice')?.position).toBe(1)
-    expect(game.findPlayer('alice')?.locked).toBe(false)
+    expect(game.findPlayer('alice')?.locked).toBe(true)
   })
 
-  it('toggleLock_DeuxiemeClic_Debloque', () => {
+  it('lock_DejaBloquee_RefuseEtResteBloquee', () => {
     game.start()
     game.takePosition('alice', 1)
-    game.toggleLock('alice')
-    game.toggleLock('alice')
+    game.lock('alice')
 
-    game.takePosition('bob', 1)
-
-    expect(game.findPlayer('bob')?.position).toBe(1)
+    expect(() => game.lock('alice')).toThrow(GameError)
+    expect(game.findPlayer('alice')?.locked).toBe(true)
   })
 
-  it('toggleLock_SansPosition_Refuse', () => {
+  it('lock_SansPosition_Refuse', () => {
     game.start()
-    expect(() => game.toggleLock('alice')).toThrow(GameError)
+    expect(() => game.lock('alice')).toThrow(GameError)
+  })
+
+  it('allLocked_TousBloques_Vrai', () => {
+    game.start()
+    game.takePosition('alice', 1)
+    game.takePosition('bob', 2)
+    game.lock('alice')
+    expect(game.allLocked).toBe(false)
+
+    game.lock('bob')
+
+    expect(game.allLocked).toBe(true)
   })
 
   it('advance_PositionBloquee_GardeeDansLHistoriqueEtDebloqueeAuTourSuivant', () => {
     game.start()
     game.takePosition('alice', 1)
-    game.toggleLock('alice')
+    game.lock('alice')
     game.takePosition('bob', 2)
 
     game.advance()

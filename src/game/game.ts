@@ -51,6 +51,10 @@ export class Game {
     return this.players.every(player => player.position !== null)
   }
 
+  get allLocked(): boolean {
+    return this.players.every(player => player.locked)
+  }
+
   findPlayer(id: string): Player | undefined {
     return this.players.find(player => player.id === id)
   }
@@ -106,14 +110,8 @@ export class Game {
     if (!Number.isInteger(position) || position < 1 || position > this.players.length)
       throw new GameError('Position invalide.')
     const player = this.requirePlayer(playerId)
-
-    // re-cliquer sur sa position bloquée la débloque (sans la rendre)
-    if (player.locked && player.position === position) {
-      player.locked = false
-      return null
-    }
     if (player.locked)
-      throw new GameError('Ta position est bloquée, clique dessus pour la débloquer d\'abord.')
+      throw new GameError('Ta position est bloquée jusqu\'au tour suivant.')
 
     // re-cliquer sur sa propre position la rend
     if (player.position === position) {
@@ -131,15 +129,17 @@ export class Game {
     return holder
   }
 
-  // Retourne son jeton : bloque sa position (ou la débloque si elle l'était déjà)
-  toggleLock(playerId: string): void {
+  // Retourne son jeton : sa position est bloquée jusqu'au tour suivant, pas de retour en arrière
+  lock(playerId: string): void {
     if (!this.isBetting)
       throw new GameError('Pas de position à bloquer en ce moment.')
     const player = this.requirePlayer(playerId)
     if (player.position === null)
       throw new GameError('Prends d\'abord une position avant de la bloquer.')
+    if (player.locked)
+      throw new GameError('Ta position est déjà bloquée.')
 
-    player.locked = !player.locked
+    player.locked = true
   }
 
   advance(): void {

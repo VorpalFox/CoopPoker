@@ -13,7 +13,6 @@ export const BUTTON_IDS = {
   lock: `${BUTTON_PREFIX}:lock`,
   next: `${BUTTON_PREFIX}:next`,
   replay: `${BUTTON_PREFIX}:replay`,
-  end: `${BUTTON_PREFIX}:end`,
 }
 export const POSITION_BUTTON_ID = (position: number) => `${BUTTON_PREFIX}:pos:${position}`
 
@@ -33,7 +32,7 @@ const HISTORY_CELL_WIDTH = 8 // largeur de 'Pré-flop', le plus long libellé
 const RULES = [
   '• Chacun reçoit 2 cartes en MP, puis 4 tours : pré-flop, flop, turn, river.',
   '• À chaque tour, prenez une position : **1 = meilleure main**.',
-  '• On peut voler une position ⚪, sauf si elle est bloquée ⚫ (son détenteur peut la débloquer en cliquant dessus).',
+  '• On peut voler une position ⚪, sauf si elle est bloquée ⚫ (jusqu\'au tour suivant).',
   '• Après la river, **tout le monde gagne si le classement est parfait**.',
 ].join('\n')
 
@@ -186,23 +185,22 @@ function tableButtons(game: Game): ActionRowBuilder<ButtonBuilder>[] {
         button(BUTTON_IDS.replay, 'Rejouer', ButtonStyle.Success).setDisabled(game.players.length < MIN_PLAYERS),
         button(BUTTON_IDS.join, 'Rejoindre', ButtonStyle.Primary),
         button(BUTTON_IDS.leave, 'Quitter', ButtonStyle.Secondary),
-        button(BUTTON_IDS.end, 'Arrêter', ButtonStyle.Danger),
       )]
     default:
       return [
         ...positionRows(game),
         row(
           button(BUTTON_IDS.cards, '🂠 Mes cartes', ButtonStyle.Secondary),
-          button(BUTTON_IDS.lock, '🔒 Bloquer / débloquer ma position', ButtonStyle.Secondary),
+          // commun à tous : on ne peut le griser que quand plus personne n'a rien à bloquer
+          button(BUTTON_IDS.lock, '🔒 Bloquer ma position', ButtonStyle.Secondary).setDisabled(game.allLocked),
           button(BUTTON_IDS.next, game.phase === 'river' ? 'Révéler ▶' : 'Tour suivant ▶', ButtonStyle.Success).setDisabled(!game.allPositioned),
-          button(BUTTON_IDS.end, 'Arrêter', ButtonStyle.Danger),
         ),
       ]
   }
 }
 
-// Boutons 1..n : bleus si libres, gris avec le nom du joueur si pris, rouges avec un cadenas si bloqués.
-// Pas désactivés quand bloqués : le détenteur doit pouvoir cliquer dessus pour débloquer.
+// Boutons 1..n : bleus si libres, verts si pris, gris désactivés avec un cadenas si bloqués
+// (Discord n'a pas de bouton noir, le gris désactivé est le plus sombre dispo)
 function positionRows(game: Game): ActionRowBuilder<ButtonBuilder>[] {
   const buttons = game.players.map((_, i) => {
     const position = i + 1
@@ -211,8 +209,8 @@ function positionRows(game: Game): ActionRowBuilder<ButtonBuilder>[] {
     if (!holder)
       return button(id, `${position}`, ButtonStyle.Primary)
     if (holder.locked)
-      return button(id, `🔒 ${position} · ${truncate(holder.name, 20)}`, ButtonStyle.Danger)
-    return button(id, `${position} · ${truncate(holder.name, 20)}`, ButtonStyle.Secondary)
+      return button(id, `🔒 ${position} · ${truncate(holder.name, 20)}`, ButtonStyle.Secondary).setDisabled(true)
+    return button(id, `${position} · ${truncate(holder.name, 20)}`, ButtonStyle.Success)
   })
 
   const rows: ActionRowBuilder<ButtonBuilder>[] = []

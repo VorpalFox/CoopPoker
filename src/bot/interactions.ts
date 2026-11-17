@@ -88,7 +88,7 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
       await interaction.update(renderTable(game))
       return
     case 'lock':
-      game.toggleLock(userId)
+      game.lock(userId)
       await interaction.update(renderTable(game))
       return
     case 'next':
@@ -105,11 +105,6 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
       await interaction.update(renderTable(game))
       await refreshInfo(session)
       await dealCards(interaction, session)
-      return
-    case 'end':
-      game.requirePlayer(userId)
-      sessions.delete(interaction.channelId)
-      await interaction.update({ ...renderTable(game, { withButtons: false }), content: '🛑 Partie terminée.' })
       return
   }
 }
