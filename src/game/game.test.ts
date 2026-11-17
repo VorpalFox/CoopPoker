@@ -97,7 +97,17 @@ describe('Game', () => {
     game.toggleLock('alice')
 
     expect(() => game.takePosition('alice', 2)).toThrow(GameError)
-    expect(() => game.takePosition('alice', 1)).toThrow(GameError)
+  })
+
+  it('takePosition_SaPositionBloquee_LaDebloqueSansLaRendre', () => {
+    game.start()
+    game.takePosition('alice', 1)
+    game.toggleLock('alice')
+
+    game.takePosition('alice', 1)
+
+    expect(game.findPlayer('alice')?.position).toBe(1)
+    expect(game.findPlayer('alice')?.locked).toBe(false)
   })
 
   it('toggleLock_DeuxiemeClic_Debloque', () => {

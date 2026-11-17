@@ -106,8 +106,14 @@ export class Game {
     if (!Number.isInteger(position) || position < 1 || position > this.players.length)
       throw new GameError('Position invalide.')
     const player = this.requirePlayer(playerId)
+
+    // re-cliquer sur sa position bloquée la débloque (sans la rendre)
+    if (player.locked && player.position === position) {
+      player.locked = false
+      return null
+    }
     if (player.locked)
-      throw new GameError('Ta position est bloquée, débloque-la d\'abord.')
+      throw new GameError('Ta position est bloquée, clique dessus pour la débloquer d\'abord.')
 
     // re-cliquer sur sa propre position la rend
     if (player.position === position) {

@@ -27,11 +27,13 @@ const PHASE_LABELS: Record<Phase, string> = {
 }
 
 const ROUND_LABELS = ['Pré-flop', 'Flop', 'Turn', 'River']
+const HISTORY_NAME_WIDTH = 12
+const HISTORY_CELL_WIDTH = 8 // largeur de 'Pré-flop', le plus long libellé
 
 const RULES = [
   '• Chacun reçoit 2 cartes en MP, puis 4 tours : pré-flop, flop, turn, river.',
   '• À chaque tour, prenez une position : **1 = meilleure main**.',
-  '• On peut voler une position ⚪, sauf si elle est bloquée ⚫.',
+  '• On peut voler une position ⚪, sauf si elle est bloquée ⚫ (son détenteur peut la débloquer en cliquant dessus).',
   '• Après la river, **tout le monde gagne si le classement est parfait**.',
 ].join('\n')
 
@@ -52,9 +54,9 @@ export function renderInfo(game: Game): BaseMessageOptions {
     .setTitle(`🃏 Poker coopératif · Manche ${handNumber(game)}`)
     .setDescription(RULES)
 
-  const history = historyLines(game)
-  if (history.length > 0)
-    embed.addFields({ name: '📜 Historique de la manche', value: history.join('\n') })
+  const history = historyTable(game)
+  if (history)
+    embed.addFields({ name: '📜 Historique de la manche', value: history })
   addScore(embed, game)
   return { embeds: [embed], components: [] }
 }
@@ -116,16 +118,24 @@ function showdownEmbed(game: Game): EmbedBuilder {
     .addFields({ name: 'Résultat', value: result.entries.map(showdownLine).join('\n') })
 }
 
-// Un tour par ligne, jetons triés par position (sans le tableau, il est déjà sur la table)
-function historyLines(game: Game): string[] {
+// Tableau en bloc de code : une ligne par joueur, une colonne par tour joué
+function historyTable(game: Game): string {
   const roundCount = Math.max(0, ...game.players.map(player => player.history.length))
-  return Array.from({ length: roundCount }, (_, round) => {
-    const chips = game.players
-      .filter(player => player.history[round])
-      .sort((a, b) => a.history[round].position - b.history[round].position)
-      .map(player => `${chip(player.history[round])} ${playerName(player)}`)
-    return `**${ROUND_LABELS[round]}** : ${chips.join(' · ')}`
-  })
+  if (roundCount === 0)
+    return ''
+
+  // pas de ` dans un bloc de code, ça le casserait
+  const names = game.players.map(player => truncate(player.name.replaceAll('`', ''), HISTORY_NAME_WIDTH))
+  const nameWidth = Math.max(...names.map(name => name.length))
+  const rounds = ROUND_LABELS.slice(0, roundCount)
+
+  const header = [''.padEnd(nameWidth), ...rounds.map(label => label.padEnd(HISTORY_CELL_WIDTH))].join(' ')
+  const rows = game.players.map((player, i) => [
+    names[i].padEnd(nameWidth),
+    // ○ ● plutôt que ⚪ ⚫ : les émojis font ~2 caractères de large et décaleraient les colonnes
+    ...player.history.map(({ position, locked }) => `${locked ? '●' : '○'}${position}`.padEnd(HISTORY_CELL_WIDTH)),
+  ].join(' '))
+  return ['```', header.trimEnd(), ...rows.map(row => row.trimEnd()), '```'].join('\n')
 }
 
 // Numéro de la manche en cours (ou qui vient de se finir à l'abattage)
@@ -191,7 +201,8 @@ function tableButtons(game: Game): ActionRowBuilder<ButtonBuilder>[] {
   }
 }
 
-// Boutons 1..n : bleus si libres, gris avec le nom du joueur si pris, désactivés avec un cadenas si bloqués
+// Boutons 1..n : bleus si libres, gris avec le nom du joueur si pris, rouges avec un cadenas si bloqués.
+// Pas désactivés quand bloqués : le détenteur doit pouvoir cliquer dessus pour débloquer.
 function positionRows(game: Game): ActionRowBuilder<ButtonBuilder>[] {
   const buttons = game.players.map((_, i) => {
     const position = i + 1
@@ -200,7 +211,7 @@ function positionRows(game: Game): ActionRowBuilder<ButtonBuilder>[] {
     if (!holder)
       return button(id, `${position}`, ButtonStyle.Primary)
     if (holder.locked)
-      return button(id, `🔒 ${position} · ${truncate(holder.name, 20)}`, ButtonStyle.Secondary).setDisabled(true)
+      return button(id, `🔒 ${position} · ${truncate(holder.name, 20)}`, ButtonStyle.Danger)
     return button(id, `${position} · ${truncate(holder.name, 20)}`, ButtonStyle.Secondary)
   })
 
