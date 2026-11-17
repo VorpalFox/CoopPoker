@@ -26,7 +26,9 @@ const PHASE_LABELS: Record<Phase, string> = {
   showdown: 'Abattage',
 }
 
-const COLORS = { lobby: 0x5865f2, betting: 0x2b8a3e, win: 0xf59f00, loss: 0xe03131 }
+const ROUND_LABELS = ['Pré-flop', 'Flop', 'Turn', 'River']
+
+const COLORS = { lobby: 0x5865f2, betting: 0x2b8a3e, history: 0x868e96, win: 0xf59f00, loss: 0xe03131 }
 const BUTTONS_PER_ROW = 5
 
 export function renderTable(game: Game, { withButtons = true } = {}): BaseMessageOptions {
@@ -36,9 +38,28 @@ export function renderTable(game: Game, { withButtons = true } = {}): BaseMessag
   }
 }
 
-// Réponse privée du bouton "Mes cartes"
-export function renderHoleCards(game: Game, player: Player): BaseMessageOptions {
-  const lines = [`Tes cartes : **${formatCards(player.hole)}**`]
+// Historique des positions de la manche, un tour par ligne (sans le tableau, il est déjà sur la table)
+export function renderHistory(game: Game): BaseMessageOptions {
+  const roundCount = Math.max(0, ...game.players.map(player => player.history.length))
+  const lines = Array.from({ length: roundCount }, (_, round) => {
+    const chips = game.players
+      .filter(player => player.history[round])
+      .sort((a, b) => a.history[round].position - b.history[round].position)
+      .map(player => `${chip(player.history[round])} ${playerName(player)}`)
+    return `**${ROUND_LABELS[round]}** : ${chips.join(' · ')}`
+  })
+
+  const embed = new EmbedBuilder()
+    .setColor(COLORS.history)
+    .setTitle('📜 Historique de la manche')
+    .setDescription(lines.join('\n') || '_Rien pour l\'instant_')
+  return { embeds: [embed], components: [] }
+}
+
+// Cartes d'un joueur : en MP à chaque manche, ou en réponse privée au bouton "Mes cartes"
+export function renderHoleCards(game: Game, player: Player, header?: string): BaseMessageOptions {
+  const lines = header ? [header] : []
+  lines.push(`Tes cartes : **${formatCards(player.hole)}**`)
   if (game.board.length > 0) {
     const hand = evaluateHand([...player.hole, ...game.board])
     lines.push(`Tableau : ${formatCards(game.board)}`)
@@ -64,7 +85,7 @@ function lobbyEmbed(game: Game): EmbedBuilder {
     .setColor(COLORS.lobby)
     .setTitle('🃏 Poker coopératif')
     .setDescription([
-      'Chacun reçoit 2 cartes. À chaque tour, prenez une position de **1** (meilleure main) à **n** (la pire).',
+      'Chacun reçoit 2 cartes en MP. À chaque tour, prenez une position de **1** à **n** selon la force de votre main.',
       'Discutez, piquez-vous les positions (⚪), bloquez la vôtre quand vous êtes sûrs (⚫), puis passez au tour suivant.',
       'Après la river, **tout le monde gagne si le classement final est parfait**.',
     ].join('\n'))
@@ -84,7 +105,7 @@ function bettingEmbed(game: Game, withFooter: boolean): EmbedBuilder {
   return embed.setFooter({
     text: game.allPositioned
       ? 'Tout le monde est placé : passez au tour suivant quand vous êtes d\'accord.'
-      : 'Clique sur une position pour la prendre (même déjà prise, sauf si bloquée), re-clique dessus pour la rendre. ⚪ libre · ⚫ bloquée',
+      : 'Prenez une position',
   })
 }
 
@@ -94,7 +115,7 @@ function showdownEmbed(game: Game): EmbedBuilder {
     .setColor(result.success ? COLORS.win : COLORS.loss)
     .setTitle(result.success ? '🎉 Classement parfait, tout le monde gagne !' : '💥 Raté, le classement n\'était pas bon...')
     .setDescription(boardText(game.board))
-    .addFields({ name: 'Résultat', value: result.entries.map(entry => showdownLine(entry, game)).join('\n') })
+    .addFields({ name: 'Résultat', value: result.entries.map(showdownLine).join('\n') })
   addScore(embed, game)
   return embed
 }
@@ -104,20 +125,15 @@ function chip({ position, locked }: RoundPosition): string {
   return `${locked ? '⚫' : '⚪'}${position}`
 }
 
-function historyText(history: RoundPosition[]): string {
-  return history.length > 0 ? `  _(${history.map(chip).join(' → ')})_` : ''
-}
-
 function positionLine(player: Player): string {
   const current = player.position === null ? '⏳' : chip({ position: player.position, locked: player.locked })
-  return `**${current}** · ${playerName(player)}${historyText(player.history)}`
+  return `**${current}** · ${playerName(player)}`
 }
 
-function showdownLine(entry: ShowdownEntry, game: Game): string {
+function showdownLine(entry: ShowdownEntry): string {
   const trueRank = entry.bestRank === entry.worstRank ? `${entry.bestRank}` : `${entry.bestRank} à ${entry.worstRank}`
   const correction = entry.correct ? '' : ` → vraie place : **${trueRank}**`
-  const history = historyText(game.findPlayer(entry.id)?.history ?? [])
-  return `${entry.correct ? '✅' : '❌'} **${entry.position}** · ${escapeMarkdown(entry.name)} : \`${formatCards(entry.hole)}\` ${HAND_NAMES[entry.hand.category]}${correction}${history}`
+  return `${entry.correct ? '✅' : '❌'} **${entry.position}** · ${escapeMarkdown(entry.name)} : \`${formatCards(entry.hole)}\` ${HAND_NAMES[entry.hand.category]}${correction}`
 }
 
 function boardText(board: Card[]): string {

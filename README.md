@@ -5,10 +5,11 @@ Bot Discord de poker coopératif. Chacun reçoit 2 cartes. À chaque tour (pré-
 ## Utilisation
 
 - `/poker create` : ouvre une table dans le salon. Les autres cliquent sur **Rejoindre**, puis **Lancer**.
-- **🂠 Mes cartes** : affiche tes cartes en privé, avec ta meilleure main dès le flop.
+- **Tes cartes** : chacun les reçoit en MP au début de la manche. Le MP est mis à jour à chaque tour avec le tableau et ta meilleure main.
+- **🂠 Mes cartes** : affiche tes cartes en privé dans le salon. Pratique si tu bloques les MP des membres du serveur.
 - **1..n** : prend une position, même si elle est déjà prise. Re-cliquer sur la sienne la rend.
 - **🔒 Bloquer / débloquer ma position** : retourne ton jeton. Plus personne ne peut te le voler, et tu ne peux plus en changer avant de le débloquer. À l'écran, ⚪ = libre et ⚫ = bloqué, y compris dans l'historique.
-- **Tour suivant** : actif quand tout le monde est placé. La table est alors repostée en bas du salon.
+- **Tour suivant** : actif quand tout le monde est placé. Le message d'historique de la manche est réécrit, puis la table est recréée en bas du salon.
 - `/poker table` : réaffiche la table. `/poker stop` : ferme la table.
 
 Les parties sont gardées en mémoire : un redémarrage du bot les efface.
