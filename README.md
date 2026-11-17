@@ -13,12 +13,17 @@ Bot Discord de poker coopératif. Chacun reçoit 2 cartes. À chaque tour (pré-
 
 Les parties sont gardées en mémoire : un redémarrage du bot les efface.
 
-## Créer le bot Discord
+## Inviter le bot sur un serveur
 
-1. Sur https://discord.com/developers/applications, clique sur **New Application**.
-2. Onglet **Bot** : **Reset Token**, puis copie le token dans `DISCORD_TOKEN`. Aucun intent privilégié n'est nécessaire.
-3. Onglet **General Information** : copie l'**Application ID** dans `DISCORD_CLIENT_ID`.
-4. Onglet **OAuth2 > URL Generator** : coche les scopes `bot` et `applications.commands`, et les permissions `View Channels`, `Send Messages` et `Embed Links`. Ouvre l'URL générée pour inviter le bot sur ton serveur.
+👉 [Ajouter CoopPoker à un serveur](https://discord.com/oauth2/authorize?client_id=1572236813710663812&permissions=19456&integration_type=0&scope=bot+applications.commands)
+
+Le bot demande seulement les permissions `View Channels`, `Send Messages` et `Embed Links`.
+
+## Le bot Discord
+
+L'appli existe déjà : son Application ID `1572236813710663812` est pré-rempli dans `.env.example`.
+
+Le token se trouve sur le portail [Discord Developer Portal](https://discord.com/developers/applications), onglet **Bot**, bouton **Reset Token**. Il ne va **que** dans le `.env`, jamais dans le dépôt. Aucun intent privilégié n'est nécessaire.
 
 ## En local
 
