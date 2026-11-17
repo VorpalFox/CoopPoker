@@ -128,7 +128,7 @@ function bettingEmbed(game: Game, withFooter: boolean): EmbedBuilder {
     return embed
   return embed.setFooter({
     text: game.allPositioned
-      ? 'Tout le monde est placé : passez au tour suivant quand vous êtes d\'accord.'
+      ? 'Tout le monde est placé'
       : 'Prenez une position',
   })
 }
