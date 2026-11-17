@@ -28,6 +28,13 @@ const PHASE_LABELS: Record<Phase, string> = {
 
 const ROUND_LABELS = ['Pré-flop', 'Flop', 'Turn', 'River']
 
+const RULES = [
+  '• Chacun reçoit 2 cartes en MP, puis 4 tours : pré-flop, flop, turn, river.',
+  '• À chaque tour, prenez une position : **1 = meilleure main**.',
+  '• On peut voler une position ⚪, sauf si elle est bloquée ⚫.',
+  '• Après la river, **tout le monde gagne si le classement est parfait**.',
+].join('\n')
+
 const COLORS = { lobby: 0x5865f2, betting: 0x2b8a3e, history: 0x868e96, win: 0xf59f00, loss: 0xe03131 }
 const BUTTONS_PER_ROW = 5
 
@@ -38,21 +45,17 @@ export function renderTable(game: Game, { withButtons = true } = {}): BaseMessag
   }
 }
 
-// Historique des positions de la manche, un tour par ligne (sans le tableau, il est déjà sur la table)
-export function renderHistory(game: Game): BaseMessageOptions {
-  const roundCount = Math.max(0, ...game.players.map(player => player.history.length))
-  const lines = Array.from({ length: roundCount }, (_, round) => {
-    const chips = game.players
-      .filter(player => player.history[round])
-      .sort((a, b) => a.history[round].position - b.history[round].position)
-      .map(player => `${chip(player.history[round])} ${playerName(player)}`)
-    return `**${ROUND_LABELS[round]}** : ${chips.join(' · ')}`
-  })
-
+// Message du haut pendant la partie : rappel des règles + historique de la manche + score
+export function renderInfo(game: Game): BaseMessageOptions {
   const embed = new EmbedBuilder()
     .setColor(COLORS.history)
-    .setTitle('📜 Historique de la manche')
-    .setDescription(lines.join('\n') || '_Rien pour l\'instant_')
+    .setTitle(`🃏 Poker coopératif · Manche ${handNumber(game)}`)
+    .setDescription(RULES)
+
+  const history = historyLines(game)
+  if (history.length > 0)
+    embed.addFields({ name: '📜 Historique de la manche', value: history.join('\n') })
+  addScore(embed, game)
   return { embeds: [embed], components: [] }
 }
 
@@ -84,11 +87,7 @@ function lobbyEmbed(game: Game): EmbedBuilder {
   return new EmbedBuilder()
     .setColor(COLORS.lobby)
     .setTitle('🃏 Poker coopératif')
-    .setDescription([
-      'Chacun reçoit 2 cartes en MP. À chaque tour, prenez une position de **1** à **n** selon la force de votre main.',
-      'Discutez, piquez-vous les positions (⚪), bloquez la vôtre quand vous êtes sûrs (⚫), puis passez au tour suivant.',
-      'Après la river, **tout le monde gagne si le classement final est parfait**.',
-    ].join('\n'))
+    .setDescription(RULES)
     .addFields({ name: `Joueurs (${game.players.length}/${MAX_PLAYERS})`, value: players || '_Personne pour l\'instant_' })
 }
 
@@ -97,8 +96,7 @@ function bettingEmbed(game: Game, withFooter: boolean): EmbedBuilder {
     .setColor(COLORS.betting)
     .setTitle(`🃏 ${PHASE_LABELS[game.phase]}`)
     .setDescription(boardText(game.board))
-    .addFields({ name: 'Positions (1 = meilleure main)', value: game.players.map(positionLine).join('\n') })
-  addScore(embed, game)
+    .addFields({ name: 'Positions', value: game.players.map(positionLine).join('\n') })
 
   if (!withFooter)
     return embed
@@ -111,13 +109,28 @@ function bettingEmbed(game: Game, withFooter: boolean): EmbedBuilder {
 
 function showdownEmbed(game: Game): EmbedBuilder {
   const result = game.result!
-  const embed = new EmbedBuilder()
+  return new EmbedBuilder()
     .setColor(result.success ? COLORS.win : COLORS.loss)
     .setTitle(result.success ? '🎉 Classement parfait, tout le monde gagne !' : '💥 Raté, le classement n\'était pas bon...')
     .setDescription(boardText(game.board))
     .addFields({ name: 'Résultat', value: result.entries.map(showdownLine).join('\n') })
-  addScore(embed, game)
-  return embed
+}
+
+// Un tour par ligne, jetons triés par position (sans le tableau, il est déjà sur la table)
+function historyLines(game: Game): string[] {
+  const roundCount = Math.max(0, ...game.players.map(player => player.history.length))
+  return Array.from({ length: roundCount }, (_, round) => {
+    const chips = game.players
+      .filter(player => player.history[round])
+      .sort((a, b) => a.history[round].position - b.history[round].position)
+      .map(player => `${chip(player.history[round])} ${playerName(player)}`)
+    return `**${ROUND_LABELS[round]}** : ${chips.join(' · ')}`
+  })
+}
+
+// Numéro de la manche en cours (ou qui vient de se finir à l'abattage)
+export function handNumber(game: Game): number {
+  return game.wins + game.losses + (game.phase === 'showdown' ? 0 : 1)
 }
 
 // Le jeton : ⚪ face blanche (volable), ⚫ retourné (bloqué)

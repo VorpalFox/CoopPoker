@@ -1,14 +1,16 @@
 import { type ButtonInteraction, type ChatInputCommandInteraction, type Interaction, type Message, MessageFlags, type RepliableInteraction, type SendableChannels } from 'discord.js'
-import { Game, GameError } from '../game/game.js'
+import { Game, GameError, type Player } from '../game/game.js'
 import { COMMAND_NAME } from './commands.js'
-import { BUTTON_PREFIX, renderHistory, renderHoleCards, renderTable } from './render.js'
+import { BUTTON_PREFIX, handNumber, renderHoleCards, renderInfo, renderTable } from './render.js'
 
-const CARDS_HEADER = (channelId: string) => `🃏 Ta main dans <#${channelId}>`
+const CARDS_HEADER = (channelId: string, hand: number) => `🃏 Manche ${hand} dans <#${channelId}>`
 
+// Une partie = 2 messages dans le salon, toujours modifiés sur place :
+// le message d'infos (règles + historique + score) et la table juste en dessous
 interface TableSession {
   game: Game
-  historyMessage: Message | null // historique de la manche en cours, réécrit à chaque tour
-  cardMessages: Map<string, Message> // MP de chaque joueur pour la manche en cours
+  infoMessage: Message | null
+  cardMessages: Map<string, Message> // MP de chaque joueur, réutilisé d'une manche à l'autre
 }
 
 // Une table par salon, gardée en mémoire (perdue au redémarrage du bot, c'est assumé)
@@ -39,7 +41,7 @@ async function handleCommand(interaction: ChatInputCommandInteraction): Promise<
         throw new GameError('Il y a déjà une table dans ce salon (`/poker table` pour la réafficher, `/poker stop` pour la fermer).')
       const game = new Game()
       game.join(interaction.user.id, displayName(interaction))
-      sessions.set(channelId, { game, historyMessage: null, cardMessages: new Map() })
+      sessions.set(channelId, { game, infoMessage: null, cardMessages: new Map() })
       await interaction.reply(renderTable(game))
       return
     }
@@ -72,7 +74,10 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
     case 'start':
       game.requirePlayer(userId)
       game.start()
-      await interaction.update(renderTable(game))
+      // le salon d'attente devient le rappel des règles, la table s'affiche juste en dessous
+      await interaction.update(renderInfo(game))
+      session.infoMessage = interaction.message
+      await requireChannel(interaction).send(renderTable(game))
       await dealCards(interaction, session)
       return
     case 'cards':
@@ -89,23 +94,18 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
     case 'next':
       game.requirePlayer(userId)
       game.advance()
-      await interaction.deferUpdate()
-      await writeHistory(interaction, session)
-      await repostTable(interaction, game)
+      await interaction.update(renderTable(game))
+      await refreshInfo(session)
       if (game.phase !== 'showdown')
         await refreshCards(interaction.channelId, session)
       return
-    case 'replay': {
+    case 'replay':
       game.requirePlayer(userId)
-      // le résultat de la manche finie reste affiché, sans boutons
-      const finishedRound = renderTable(game, { withButtons: false })
       game.start()
-      await interaction.update(finishedRound)
-      session.historyMessage = null
-      await requireChannel(interaction).send(renderTable(game))
+      await interaction.update(renderTable(game))
+      await refreshInfo(session)
       await dealCards(interaction, session)
       return
-    }
     case 'end':
       game.requirePlayer(userId)
       sessions.delete(interaction.channelId)
@@ -114,44 +114,39 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
   }
 }
 
-// Réécrit l'historique de la manche (créé au premier tour, juste au-dessus de la table)
-async function writeHistory(interaction: ButtonInteraction, session: TableSession): Promise<void> {
-  const history = renderHistory(session.game)
-  if (session.historyMessage) {
-    try {
-      await session.historyMessage.edit(history)
-      return
-    } catch {
-      // supprimé entre-temps : on le recrée
-    }
-  }
-  session.historyMessage = await requireChannel(interaction).send(history)
+async function refreshInfo(session: TableSession): Promise<void> {
+  await session.infoMessage?.edit(renderInfo(session.game))
+    .catch(error => console.warn('Message d\'infos introuvable, pas mis à jour', error))
 }
 
-// Supprime la table du tour fini et la recrée tout en bas du salon
-async function repostTable(interaction: ButtonInteraction, game: Game): Promise<void> {
-  await interaction.message.delete().catch(() => interaction.editReply({ components: [] }))
-  await requireChannel(interaction).send(renderTable(game))
-}
-
-// Envoie ses cartes en MP à chaque joueur. Ceux qui bloquent les MP passeront par le bouton "Mes cartes".
+// Envoie ses cartes en MP à chaque joueur (ou réécrit son MP de la manche d'avant).
+// Ceux qui bloquent les MP passeront par le bouton "Mes cartes".
 async function dealCards(interaction: ButtonInteraction, session: TableSession): Promise<void> {
-  const { game, cardMessages } = session
-  cardMessages.clear()
-
-  const results = await Promise.allSettled(game.players.map(async player => {
-    const user = await interaction.client.users.fetch(player.id)
-    cardMessages.set(player.id, await user.send(renderHoleCards(game, player, CARDS_HEADER(interaction.channelId))))
-  }))
+  const { game } = session
+  const results = await Promise.allSettled(game.players.map(player => writeCards(interaction, session, player)))
 
   const failed = game.players.filter((_, i) => results[i].status === 'rejected')
   if (failed.length === 0)
     return
-  console.warn(`MP impossible pour ${failed.map(player => player.name).join(', ')}`)
-  await interaction.followUp({
-    content: `⚠️ Impossible d'envoyer les cartes en MP à ${failed.map(player => player.name).join(', ')} : utilisez le bouton 🂠 Mes cartes.`,
-    flags: MessageFlags.Ephemeral,
-  })
+  const names = failed.map(player => player.name).join(', ')
+  console.warn(`MP impossible pour ${names}`)
+  await interaction.followUp({ content: `⚠️ Impossible d'envoyer les cartes en MP à ${names} : utilisez le bouton 🂠 Mes cartes.`, flags: MessageFlags.Ephemeral })
+}
+
+async function writeCards(interaction: ButtonInteraction, session: TableSession, player: Player): Promise<void> {
+  const content = renderHoleCards(session.game, player, CARDS_HEADER(interaction.channelId, handNumber(session.game)))
+  const existing = session.cardMessages.get(player.id)
+  if (existing) {
+    try {
+      await existing.edit(content)
+      return
+    } catch {
+      // MP supprimé entre-temps : on en renvoie un
+    }
+  }
+
+  const user = await interaction.client.users.fetch(player.id)
+  session.cardMessages.set(player.id, await user.send(content))
 }
 
 // Met à jour les MP avec le nouveau tableau et la meilleure main de chacun
@@ -159,7 +154,7 @@ async function refreshCards(channelId: string, session: TableSession): Promise<v
   const { game, cardMessages } = session
   await Promise.allSettled([...cardMessages].map(([playerId, message]) => {
     const player = game.findPlayer(playerId)
-    return player ? message.edit(renderHoleCards(game, player, CARDS_HEADER(channelId))) : Promise.resolve()
+    return player ? message.edit(renderHoleCards(game, player, CARDS_HEADER(channelId, handNumber(game)))) : Promise.resolve()
   }))
 }
 
