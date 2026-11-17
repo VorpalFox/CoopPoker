@@ -33,7 +33,7 @@ const HISTORY_CELL_WIDTH = 8 // largeur de 'Pré-flop', le plus long libellé
 const RULES = [
   '• Chacun reçoit 2 cartes en MP, puis 4 tours : pré-flop, flop, turn, river.',
   '• À chaque tour, prenez une position : **1 = meilleure main**.',
-  '• On peut voler une position ⚪, sauf si elle est bloquée ⚫ (jusqu\'au tour suivant).',
+  '• On peut voler une position, sauf si elle est bloquée (jusqu\'au tour suivant).',
   '• Après la river, **tout le monde gagne si le classement est parfait**.',
 ].join('\n')
 
@@ -138,7 +138,7 @@ function showdownEmbed(game: Game): EmbedBuilder {
   const result = game.result!
   const embed = new EmbedBuilder()
     .setColor(result.success ? COLORS.win : COLORS.loss)
-    .setTitle(result.success ? '🎉 Classement parfait, tout le monde gagne !' : '💥 Raté, le classement n\'était pas bon...')
+    .setTitle(result.success ? '🎉 Classement parfait, manche gagnée !' : '💥 Classement raté, manche perdue...')
     .setDescription(boardText(game.board))
     .addFields({ name: 'Résultat', value: result.entries.map(showdownLine).join('\n') })
   addHistory(embed, game)
@@ -159,11 +159,11 @@ function addHistory(embed: EmbedBuilder, game: Game): void {
   const header = [''.padEnd(nameWidth), ...rounds.map(label => label.padEnd(HISTORY_CELL_WIDTH))].join(' ')
   const rows = game.players.map((player, i) => [
     names[i].padEnd(nameWidth),
-    // ○ ● plutôt que ⚪ ⚫ : les émojis font ~2 caractères de large et décaleraient les colonnes
-    ...player.history.map(({ position, locked }) => `${locked ? '●' : '○'}${position}`.padEnd(HISTORY_CELL_WIDTH)),
+    // ● libre, ○ bloquée (le plein ressort mieux sur fond sombre). Pas ⚪ ⚫ : les émojis font ~2 caractères de large et décaleraient les colonnes
+    ...player.history.map(({ position, locked }) => `${locked ? '○' : '●'}${position}`.padEnd(HISTORY_CELL_WIDTH)),
   ].join(' '))
   const table = ['```', header.trimEnd(), ...rows.map(row => row.trimEnd()), '```'].join('\n')
-  embed.addFields({ name: '📜 Historique de la manche', value: table })
+  embed.addFields({ name: '📜 Historique de la manche (● libre · ○ bloquée)', value: table })
 }
 
 function showdownLine(entry: ShowdownEntry): string {
@@ -207,7 +207,7 @@ function tableButtons(game: Game): ActionRowBuilder<ButtonBuilder>[] {
   }
 }
 
-// Boutons 1..n : bleus si libres, verts si pris, gris désactivés avec un cadenas si bloqués
+// Boutons 1..n : bleus si libres, verts si pris, gris désactivés si bloqués (même texte, seuls la couleur et le clic changent)
 // (Discord n'a pas de bouton noir, le gris désactivé est le plus sombre dispo)
 function positionRows(game: Game): ActionRowBuilder<ButtonBuilder>[] {
   const buttons = game.players.map((_, i) => {
@@ -217,7 +217,7 @@ function positionRows(game: Game): ActionRowBuilder<ButtonBuilder>[] {
     if (!holder)
       return button(id, `${position}`, ButtonStyle.Primary)
     if (holder.locked)
-      return button(id, `🔒 ${position} · ${truncate(holder.name, 20)}`, ButtonStyle.Secondary).setDisabled(true)
+      return button(id, `${position} · ${truncate(holder.name, 20)}`, ButtonStyle.Secondary).setDisabled(true)
     return button(id, `${position} · ${truncate(holder.name, 20)}`, ButtonStyle.Success)
   })
 
