@@ -13,6 +13,7 @@ export const BUTTON_IDS = {
   lock: `${BUTTON_PREFIX}:lock`,
   next: `${BUTTON_PREFIX}:next`,
   replay: `${BUTTON_PREFIX}:replay`,
+  help: `${BUTTON_PREFIX}:help`,
 }
 export const POSITION_BUTTON_ID = (position: number) => `${BUTTON_PREFIX}:pos:${position}`
 
@@ -36,7 +37,9 @@ const RULES = [
   '• Après la river, **tout le monde gagne si le classement est parfait**.',
 ].join('\n')
 
-// En spoiler : caché par défaut pour ceux qui connaissent, un clic pour l'afficher
+// Rappel d'une ligne toujours visible, le détail est derrière un bouton (réponse privée)
+const HAND_RANKING_SHORT = 'Quinte flush › Carré › Full › Couleur › Quinte › Brelan › Double paire › Paire › Carte haute'
+
 const HAND_RANKING = [
   '**Quinte flush** · 5 cartes qui se suivent, même couleur `9♥ 10♥ J♥ Q♥ K♥`',
   '**Carré** · 4 cartes de même valeur `7♠ 7♥ 7♦ 7♣`',
@@ -67,7 +70,12 @@ export function renderInfo(game: Game): BaseMessageOptions {
   const embed = rulesEmbed(COLORS.info).setTitle(`🃏 Poker coopératif · Manche ${handNumber(game)}`)
   if (game.wins + game.losses > 0)
     embed.addFields({ name: 'Score', value: `${game.wins} 🎉 / ${game.losses} 💥` })
-  return { embeds: [embed], components: [] }
+  return { embeds: [embed], components: [row(helpButton())] }
+}
+
+// Réponse privée du bouton "Détails des combinaisons"
+export function renderHandRanking(): BaseMessageOptions {
+  return { content: `## 🏆 Combinaisons, de la plus forte à la plus faible\n${HAND_RANKING}` }
 }
 
 // Cartes d'un joueur : en MP à chaque manche, ou en réponse privée au bouton "Mes cartes"
@@ -103,7 +111,7 @@ function rulesEmbed(color: number): EmbedBuilder {
     .setColor(color)
     .setTitle('🃏 Poker coopératif')
     .setDescription(RULES)
-    .addFields({ name: '🏆 Combinaisons, de la plus forte à la plus faible (clique pour afficher)', value: `||${HAND_RANKING}||` })
+    .addFields({ name: '🏆 Combinaisons, de la plus forte à la plus faible', value: HAND_RANKING_SHORT })
 }
 
 function lobbyEmbed(game: Game): EmbedBuilder {
@@ -182,6 +190,7 @@ function tableButtons(game: Game): ActionRowBuilder<ButtonBuilder>[] {
         button(BUTTON_IDS.join, 'Rejoindre', ButtonStyle.Primary),
         button(BUTTON_IDS.leave, 'Quitter', ButtonStyle.Secondary),
         button(BUTTON_IDS.start, 'Lancer', ButtonStyle.Success).setDisabled(game.players.length < MIN_PLAYERS),
+        helpButton(),
       )]
     case 'showdown':
       return [row(
@@ -233,4 +242,8 @@ function row(...buttons: ButtonBuilder[]): ActionRowBuilder<ButtonBuilder> {
 
 function truncate(text: string, maxLength: number): string {
   return text.length > maxLength ? `${text.slice(0, maxLength - 1)}…` : text
+}
+
+function helpButton(): ButtonBuilder {
+  return button(BUTTON_IDS.help, '🏆 Détails des combinaisons', ButtonStyle.Secondary)
 }

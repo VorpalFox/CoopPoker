@@ -1,7 +1,7 @@
 import { type ButtonInteraction, type ChatInputCommandInteraction, type Interaction, type Message, MessageFlags, type RepliableInteraction, type SendableChannels } from 'discord.js'
 import { Game, GameError, type Player } from '../game/game.js'
 import { COMMAND_NAME } from './commands.js'
-import { BUTTON_PREFIX, handNumber, renderHoleCards, renderInfo, renderTable } from './render.js'
+import { BUTTON_PREFIX, handNumber, renderHandRanking, renderHoleCards, renderInfo, renderTable } from './render.js'
 
 const CARDS_HEADER = (channelId: string, hand: number) => `🃏 Manche ${hand} dans <#${channelId}>`
 
@@ -58,10 +58,17 @@ async function handleCommand(interaction: ChatInputCommandInteraction): Promise<
 }
 
 async function handleButton(interaction: ButtonInteraction): Promise<void> {
+  const [, action, arg] = interaction.customId.split(':')
+
+  // l'aide marche pour tout le monde, même sans partie en cours
+  if (action === 'help') {
+    await interaction.reply({ ...renderHandRanking(), flags: MessageFlags.Ephemeral })
+    return
+  }
+
   const session = requireSession(interaction.channelId)
   const { game } = session
   const userId = interaction.user.id
-  const [, action, arg] = interaction.customId.split(':')
 
   switch (action) {
     case 'join':
