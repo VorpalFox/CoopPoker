@@ -43,7 +43,7 @@ Le bot ouvre lui-même une connexion sortante vers Discord : pas de port à ouvr
 
 ```sh
 # Node 22+ (via nvm ou NodeSource), puis :
-npm install -g pm2
+sudo npm install -g pm2 # sans sudo si Node vient de nvm
 git clone <repo> coop-poker && cd coop-poker
 npm install
 cp .env.example .env    # puis remplis les valeurs
