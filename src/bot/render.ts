@@ -1,6 +1,6 @@
 import { ActionRowBuilder, type BaseMessageOptions, ButtonBuilder, ButtonStyle, EmbedBuilder, escapeMarkdown } from 'discord.js'
 import { type Card, formatCards } from '../game/cards.js'
-import { type Game, MAX_PLAYERS, MIN_PLAYERS, type Phase, type Player, type RoundPosition } from '../game/game.js'
+import { type Game, MAX_PLAYERS, MIN_PLAYERS, type Phase, type Player } from '../game/game.js'
 import { evaluateHand, HAND_NAMES } from '../game/handEvaluator.js'
 import { type ShowdownEntry } from '../game/showdown.js'
 
@@ -36,7 +36,22 @@ const RULES = [
   '• Après la river, **tout le monde gagne si le classement est parfait**.',
 ].join('\n')
 
-const COLORS = { lobby: 0x5865f2, betting: 0x2b8a3e, history: 0x868e96, win: 0xf59f00, loss: 0xe03131 }
+// En spoiler : caché par défaut pour ceux qui connaissent, un clic pour l'afficher
+const HAND_RANKING = [
+  '**Quinte flush** · 5 cartes qui se suivent, même couleur `9♥ 10♥ J♥ Q♥ K♥`',
+  '**Carré** · 4 cartes de même valeur `7♠ 7♥ 7♦ 7♣`',
+  '**Full** · un brelan + une paire `Q♠ Q♥ Q♦ 4♣ 4♥`',
+  '**Couleur** · 5 cartes de même couleur `2♦ 6♦ 9♦ J♦ K♦`',
+  '**Quinte** · 5 cartes qui se suivent `5♣ 6♥ 7♠ 8♦ 9♣`',
+  '**Brelan** · 3 cartes de même valeur `8♠ 8♥ 8♦`',
+  '**Double paire** · `J♠ J♦ 3♣ 3♥`',
+  '**Paire** · `A♥ A♣`',
+  '**Carte haute** · rien de tout ça',
+  '',
+  'Chacun garde la meilleure main de 5 cartes parmi ses 2 + les 5 du tableau. À combinaison égale, la plus haute carte départage, puis la suivante… Les couleurs ne départagent jamais. L\'As compte aussi pour 1 dans A-2-3-4-5.',
+].join('\n')
+
+const COLORS = { lobby: 0x5865f2, betting: 0x2b8a3e, info: 0x868e96, win: 0xf59f00, loss: 0xe03131 }
 const BUTTONS_PER_ROW = 5
 
 export function renderTable(game: Game, { withButtons = true } = {}): BaseMessageOptions {
@@ -46,18 +61,9 @@ export function renderTable(game: Game, { withButtons = true } = {}): BaseMessag
   }
 }
 
-// Message du haut pendant la partie : rappel des règles + historique de la manche + score
-export function renderInfo(game: Game): BaseMessageOptions {
-  const embed = new EmbedBuilder()
-    .setColor(COLORS.history)
-    .setTitle(`🃏 Poker coopératif · Manche ${handNumber(game)}`)
-    .setDescription(RULES)
-
-  const history = historyTable(game)
-  if (history)
-    embed.addFields({ name: '📜 Historique de la manche', value: history })
-  addScore(embed, game)
-  return { embeds: [embed], components: [] }
+// Message du haut pendant la partie : règles + combinaisons, il ne bouge plus une fois la partie lancée
+export function renderInfo(): BaseMessageOptions {
+  return { embeds: [rulesEmbed(COLORS.info)], components: [] }
 }
 
 // Cartes d'un joueur : en MP à chaque manche, ou en réponse privée au bouton "Mes cartes"
@@ -72,6 +78,11 @@ export function renderHoleCards(game: Game, player: Player, header?: string): Ba
   return { content: lines.join('\n') }
 }
 
+// Numéro de la manche en cours (ou qui vient de se finir à l'abattage)
+export function handNumber(game: Game): number {
+  return game.wins + game.losses + (game.phase === 'showdown' ? 0 : 1)
+}
+
 function tableEmbed(game: Game, withFooter: boolean): EmbedBuilder {
   switch (game.phase) {
     case 'lobby':
@@ -83,21 +94,28 @@ function tableEmbed(game: Game, withFooter: boolean): EmbedBuilder {
   }
 }
 
-function lobbyEmbed(game: Game): EmbedBuilder {
-  const players = game.players.map(player => `• ${playerName(player)}`).join('\n')
+function rulesEmbed(color: number): EmbedBuilder {
   return new EmbedBuilder()
-    .setColor(COLORS.lobby)
+    .setColor(color)
     .setTitle('🃏 Poker coopératif')
     .setDescription(RULES)
+    .addFields({ name: '🏆 Combinaisons, de la plus forte à la plus faible (clique pour afficher)', value: `||${HAND_RANKING}||` })
+}
+
+function lobbyEmbed(game: Game): EmbedBuilder {
+  const players = game.players.map(player => `• ${playerName(player)}`).join('\n')
+  return rulesEmbed(COLORS.lobby)
     .addFields({ name: `Joueurs (${game.players.length}/${MAX_PLAYERS})`, value: players || '_Personne pour l\'instant_' })
 }
 
+// Les positions en cours sont sur les boutons, la table montre seulement le tableau et l'historique
 function bettingEmbed(game: Game, withFooter: boolean): EmbedBuilder {
   const embed = new EmbedBuilder()
     .setColor(COLORS.betting)
-    .setTitle(`🃏 ${PHASE_LABELS[game.phase]}`)
+    .setTitle(`🃏 Manche ${handNumber(game)} · ${PHASE_LABELS[game.phase]}`)
     .setDescription(boardText(game.board))
-    .addFields({ name: 'Positions', value: game.players.map(positionLine).join('\n') })
+  addHistory(embed, game)
+  addScore(embed, game)
 
   if (!withFooter)
     return embed
@@ -110,18 +128,23 @@ function bettingEmbed(game: Game, withFooter: boolean): EmbedBuilder {
 
 function showdownEmbed(game: Game): EmbedBuilder {
   const result = game.result!
-  return new EmbedBuilder()
+  const embed = new EmbedBuilder()
     .setColor(result.success ? COLORS.win : COLORS.loss)
-    .setTitle(result.success ? '🎉 Classement parfait, tout le monde gagne !' : '💥 Raté, le classement n\'était pas bon...')
+    .setTitle(result.success
+      ? `🎉 Manche ${handNumber(game)} : classement parfait, tout le monde gagne !`
+      : `💥 Manche ${handNumber(game)} : raté, le classement n'était pas bon...`)
     .setDescription(boardText(game.board))
     .addFields({ name: 'Résultat', value: result.entries.map(showdownLine).join('\n') })
+  addHistory(embed, game)
+  addScore(embed, game)
+  return embed
 }
 
 // Tableau en bloc de code : une ligne par joueur, une colonne par tour joué
-function historyTable(game: Game): string {
+function addHistory(embed: EmbedBuilder, game: Game): void {
   const roundCount = Math.max(0, ...game.players.map(player => player.history.length))
   if (roundCount === 0)
-    return ''
+    return
 
   // pas de ` dans un bloc de code, ça le casserait
   const names = game.players.map(player => truncate(player.name.replaceAll('`', ''), HISTORY_NAME_WIDTH))
@@ -134,22 +157,8 @@ function historyTable(game: Game): string {
     // ○ ● plutôt que ⚪ ⚫ : les émojis font ~2 caractères de large et décaleraient les colonnes
     ...player.history.map(({ position, locked }) => `${locked ? '●' : '○'}${position}`.padEnd(HISTORY_CELL_WIDTH)),
   ].join(' '))
-  return ['```', header.trimEnd(), ...rows.map(row => row.trimEnd()), '```'].join('\n')
-}
-
-// Numéro de la manche en cours (ou qui vient de se finir à l'abattage)
-export function handNumber(game: Game): number {
-  return game.wins + game.losses + (game.phase === 'showdown' ? 0 : 1)
-}
-
-// Le jeton : ⚪ face blanche (volable), ⚫ retourné (bloqué)
-function chip({ position, locked }: RoundPosition): string {
-  return `${locked ? '⚫' : '⚪'}${position}`
-}
-
-function positionLine(player: Player): string {
-  const current = player.position === null ? '⏳' : chip({ position: player.position, locked: player.locked })
-  return `**${current}** · ${playerName(player)}`
+  const table = ['```', header.trimEnd(), ...rows.map(row => row.trimEnd()), '```'].join('\n')
+  embed.addFields({ name: '📜 Historique de la manche', value: table })
 }
 
 function showdownLine(entry: ShowdownEntry): string {

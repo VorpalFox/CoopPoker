@@ -5,11 +5,10 @@ import { BUTTON_PREFIX, handNumber, renderHoleCards, renderInfo, renderTable } f
 
 const CARDS_HEADER = (channelId: string, hand: number) => `🃏 Manche ${hand} dans <#${channelId}>`
 
-// Une partie = 2 messages dans le salon, toujours modifiés sur place :
-// le message d'infos (règles + historique + score) et la table juste en dessous
+// Une partie = 2 messages dans le salon : les règles (fixes une fois la partie lancée)
+// et la table juste en dessous, modifiée sur place à chaque clic
 interface TableSession {
   game: Game
-  infoMessage: Message | null
   cardMessages: Map<string, Message> // MP de chaque joueur, réutilisé d'une manche à l'autre
 }
 
@@ -41,7 +40,7 @@ async function handleCommand(interaction: ChatInputCommandInteraction): Promise<
         throw new GameError('Il y a déjà une table dans ce salon (`/poker table` pour la réafficher, `/poker stop` pour la fermer).')
       const game = new Game()
       game.join(interaction.user.id, displayName(interaction))
-      sessions.set(channelId, { game, infoMessage: null, cardMessages: new Map() })
+      sessions.set(channelId, { game, cardMessages: new Map() })
       await interaction.reply(renderTable(game))
       return
     }
@@ -75,8 +74,7 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
       game.requirePlayer(userId)
       game.start()
       // le salon d'attente devient le rappel des règles, la table s'affiche juste en dessous
-      await interaction.update(renderInfo(game))
-      session.infoMessage = interaction.message
+      await interaction.update(renderInfo())
       await requireChannel(interaction).send(renderTable(game))
       await dealCards(interaction, session)
       return
@@ -95,7 +93,6 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
       game.requirePlayer(userId)
       game.advance()
       await interaction.update(renderTable(game))
-      await refreshInfo(session)
       if (game.phase !== 'showdown')
         await refreshCards(interaction.channelId, session)
       return
@@ -103,15 +100,9 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
       game.requirePlayer(userId)
       game.start()
       await interaction.update(renderTable(game))
-      await refreshInfo(session)
       await dealCards(interaction, session)
       return
   }
-}
-
-async function refreshInfo(session: TableSession): Promise<void> {
-  await session.infoMessage?.edit(renderInfo(session.game))
-    .catch(error => console.warn('Message d\'infos introuvable, pas mis à jour', error))
 }
 
 // Envoie ses cartes en MP à chaque joueur (ou réécrit son MP de la manche d'avant).
