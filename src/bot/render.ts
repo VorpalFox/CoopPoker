@@ -37,9 +37,6 @@ const RULES = [
   '• Après la river, **tout le monde gagne si le classement est parfait**.',
 ].join('\n')
 
-// Rappel d'une ligne toujours visible, le détail est derrière un bouton (réponse privée)
-const HAND_RANKING_SHORT = 'Quinte flush › Carré › Full › Couleur › Quinte › Brelan › Double paire › Paire › Carte haute'
-
 const HAND_RANKING = [
   '**Quinte flush** · 5 cartes qui se suivent, même couleur `9♥ 10♥ J♥ Q♥ K♥`',
   '**Carré** · 4 cartes de même valeur `7♠ 7♥ 7♦ 7♣`',
@@ -51,7 +48,8 @@ const HAND_RANKING = [
   '**Paire** · `A♥ A♣`',
   '**Carte haute** · rien de tout ça',
   '',
-  'Chacun garde la meilleure main de 5 cartes parmi ses 2 + les 5 du tableau. À combinaison égale, la plus haute carte départage, puis la suivante… Les couleurs ne départagent jamais. L\'As compte aussi pour 1 dans A-2-3-4-5.',
+  'À combinaison égale, la plus haute carte départage, puis la suivante…',
+  'L\'as compte aussi pour 1 dans la quinte.',
 ].join('\n')
 
 const COLORS = { lobby: 0x5865f2, betting: 0x2b8a3e, info: 0x868e96, win: 0xf59f00, loss: 0xe03131 }
@@ -111,7 +109,6 @@ function rulesEmbed(color: number): EmbedBuilder {
     .setColor(color)
     .setTitle('🃏 Poker coopératif')
     .setDescription(RULES)
-    .addFields({ name: '🏆 Combinaisons, de la plus forte à la plus faible', value: HAND_RANKING_SHORT })
 }
 
 function lobbyEmbed(game: Game): EmbedBuilder {
@@ -190,7 +187,6 @@ function tableButtons(game: Game): ActionRowBuilder<ButtonBuilder>[] {
         button(BUTTON_IDS.join, 'Rejoindre', ButtonStyle.Primary),
         button(BUTTON_IDS.leave, 'Quitter', ButtonStyle.Secondary),
         button(BUTTON_IDS.start, 'Lancer', ButtonStyle.Success).setDisabled(game.players.length < MIN_PLAYERS),
-        helpButton(),
       )]
     case 'showdown':
       return [row(

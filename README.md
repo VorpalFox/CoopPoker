@@ -13,7 +13,7 @@ Bot Discord de poker coopératif. Chacun reçoit 2 cartes. À chaque tour (pré-
 - **Tour suivant** : actif quand tout le monde est placé.
 - `/poker table` : réaffiche la table. `/poker stop` : arrête la partie et ferme la table.
 
-Une partie n'occupe que 2 messages. En haut, le salon d'attente qui devient au lancement le rappel des règles, avec l'ordre des combinaisons (et un bouton pour le détail, en réponse privée), le n° de manche et le score. Il n'est mis à jour qu'à chaque nouvelle manche. En dessous, la table, modifiée sur place : tableau, historique de la manche et résultat. Le MP de chaque joueur est aussi réutilisé d'une manche à l'autre.
+Une partie n'occupe que 2 messages. En haut, le salon d'attente qui devient au lancement le rappel des règles, avec un bouton pour le détail des combinaisons (réponse privée), le n° de manche et le score. Il n'est mis à jour qu'à chaque nouvelle manche. En dessous, la table, modifiée sur place : tableau, historique de la manche et résultat. Le MP de chaque joueur est aussi réutilisé d'une manche à l'autre.
 
 Les parties sont gardées en mémoire : un redémarrage du bot les efface.
 
