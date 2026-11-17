@@ -1,0 +1,56 @@
+// Bonus / malus : une manche gagnée amène un malus pour la suivante, une manche perdue un bonus.
+// En mode chaos ils s'accumulent : une victoire retire le plus vieux bonus et ajoute un malus, et inversement.
+
+export type MalusId = 'noLock' | 'noPreflop' | 'hiddenHistory' | 'timer' | 'anonymous'
+export type BonusId = 'swap' | 'reveal' | 'hint' | 'check' | 'secondChance'
+export type EffectId = MalusId | BonusId
+export type EffectKind = 'malus' | 'bonus'
+
+export interface EffectInfo {
+  kind: EffectKind
+  emoji: string
+  name: string
+  description: string
+}
+
+export const TIMER_SECONDS_PER_PLAYER = 20
+
+export const EFFECTS: Record<EffectId, EffectInfo> = {
+  noLock: { kind: 'malus', emoji: '🔓', name: 'Pas de blocage', description: 'impossible de bloquer sa position.' },
+  noPreflop: { kind: 'malus', emoji: '⏭️', name: 'Pas de pré-flop', description: 'la manche commence directement au flop.' },
+  hiddenHistory: { kind: 'malus', emoji: '🙈', name: 'Historique masqué', description: 'les positions des tours précédents restent cachées jusqu\'au résultat.' },
+  timer: { kind: 'malus', emoji: '⏱️', name: 'Chrono', description: `${TIMER_SECONDS_PER_PLAYER} s par joueur et par tour. Au bout du temps, ceux qui ne sont pas placés prennent les positions restantes et le tour passe.` },
+  anonymous: { kind: 'malus', emoji: '🎭', name: 'Positions anonymes', description: 'les boutons ne montrent pas qui tient quelle position.' },
+  swap: { kind: 'bonus', emoji: '🔄', name: 'Échange', description: 'le premier qui clique remplace une de ses cartes.' },
+  reveal: { kind: 'bonus', emoji: '👁️', name: 'Révélation', description: 'le premier qui clique montre une de ses cartes à la table.' },
+  hint: { kind: 'bonus', emoji: '💡', name: 'Indice', description: 'une fois, à partir du flop, le bot annonce la combinaison de la meilleure main du moment.' },
+  check: { kind: 'bonus', emoji: '✔️', name: 'Vérification', description: 'une fois, à partir du flop, le bot dit si le classement actuel serait gagnant avec le tableau du moment.' },
+  secondChance: { kind: 'bonus', emoji: '🍀', name: 'Seconde chance', description: 'à la fin, une seule inversion entre deux joueurs voisins est pardonnée.' },
+}
+
+export const EFFECT_IDS = Object.keys(EFFECTS) as EffectId[]
+
+// Effets de la manche suivante, selon le résultat de celle qui vient de finir
+export function nextEffects(current: EffectId[], won: boolean, chaos: boolean, random: () => number = Math.random): EffectId[] {
+  const added: EffectKind = won ? 'malus' : 'bonus'
+
+  // sans chaos : un seul effet, qui ne dure qu'une manche
+  if (!chaos)
+    return withDrawn([], added, random)
+
+  // en chaos : on retire le plus vieux effet de l'autre sorte, et on en ajoute un
+  const removed: EffectKind = won ? 'bonus' : 'malus'
+  const kept = [...current]
+  const oldestIndex = kept.findIndex(id => EFFECTS[id].kind === removed)
+  if (oldestIndex >= 0)
+    kept.splice(oldestIndex, 1)
+  return withDrawn(kept, added, random)
+}
+
+// Ajoute un effet tiré au hasard parmi ceux de cette sorte pas encore actifs (rien s'ils le sont tous)
+function withDrawn(effects: EffectId[], kind: EffectKind, random: () => number): EffectId[] {
+  const candidates = EFFECT_IDS.filter(id => EFFECTS[id].kind === kind && !effects.includes(id))
+  if (candidates.length === 0)
+    return effects
+  return [...effects, candidates[Math.floor(random() * candidates.length)]]
+}

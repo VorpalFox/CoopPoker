@@ -1,10 +1,13 @@
 import { type Card, createDeck, shuffle } from './cards.js'
-import { evaluateShowdown, type ShowdownResult } from './showdown.js'
+import { type BonusId, type EffectId, nextEffects } from './effects.js'
+import { compareHands, evaluateHand, type HandCategory } from './handEvaluator.js'
+import { evaluateShowdown, isSingleAdjacentSwap, type ShowdownResult } from './showdown.js'
 
 export const MIN_PLAYERS = 2
 export const MAX_PLAYERS = 10
 
 export type Phase = 'lobby' | 'preflop' | 'flop' | 'turn' | 'river' | 'showdown'
+export type BettingPhase = 'preflop' | 'flop' | 'turn' | 'river'
 
 const NEXT_PHASE: Partial<Record<Phase, Phase>> = { preflop: 'flop', flop: 'turn', turn: 'river', river: 'showdown' }
 const BOARD_SIZE: Record<Phase, number> = { lobby: 0, preflop: 0, flop: 3, turn: 4, river: 5, showdown: 5 }
@@ -14,6 +17,7 @@ export class GameError extends Error {}
 
 // Comme un jeton : face blanche (volable) ou retourné face noire (bloqué)
 export interface RoundPosition {
+  phase: BettingPhase
   position: number
   locked: boolean
 }
@@ -27,6 +31,16 @@ export interface Player {
   history: RoundPosition[] // positions des tours précédents
 }
 
+// Ce que les bonus ont donné pendant la manche (chacun ne sert qu'une fois)
+export interface BonusUsage {
+  swappedBy: string | null
+  revealed: { playerId: string, card: Card } | null
+  hint: { phase: BettingPhase, category: HandCategory } | null
+  check: { phase: BettingPhase, success: boolean } | null
+}
+
+const NO_BONUS_USED: BonusUsage = { swappedBy: null, revealed: null, hint: null, check: null }
+
 export class Game {
   phase: Phase = 'lobby'
   players: Player[] = []
@@ -34,9 +48,16 @@ export class Game {
   result: ShowdownResult | null = null
   wins = 0
   losses = 0
+  chaosMode = false
+  effects: EffectId[] = [] // bonus / malus de la manche en cours
+  bonusUsage: BonusUsage = { ...NO_BONUS_USED }
+  private lastSuccess: boolean | null = null
   private deck: Card[] = []
 
-  constructor(private readonly newDeck: () => Card[] = () => shuffle(createDeck())) {}
+  constructor(
+    private readonly newDeck: () => Card[] = () => shuffle(createDeck()),
+    private readonly random: () => number = Math.random,
+  ) {}
 
   get isBetting(): boolean {
     return NEXT_PHASE[this.phase] !== undefined
@@ -53,6 +74,10 @@ export class Game {
 
   get allLocked(): boolean {
     return this.players.every(player => player.locked)
+  }
+
+  hasEffect(id: EffectId): boolean {
+    return this.effects.includes(id)
   }
 
   findPlayer(id: string): Player | undefined {
@@ -85,22 +110,36 @@ export class Game {
     this.players = this.players.filter(player => player.id !== id)
   }
 
+  toggleChaos(): void {
+    if (!this.isBetweenRounds)
+      throw new GameError('Le mode chaos se change entre deux manches.')
+    this.chaosMode = !this.chaosMode
+  }
+
   start(): void {
     if (!this.isBetweenRounds)
       throw new GameError('Une manche est déjà en cours.')
     if (this.players.length < MIN_PLAYERS)
       throw new GameError(`Il faut au moins ${MIN_PLAYERS} joueurs.`)
 
+    // bonus / malus selon la manche d'avant (aucun pour la toute première)
+    if (this.lastSuccess !== null)
+      this.effects = nextEffects(this.effects, this.lastSuccess, this.chaosMode, this.random)
+
     this.deck = this.newDeck()
     this.board = []
     this.result = null
+    this.bonusUsage = { ...NO_BONUS_USED }
     for (const player of this.players) {
       player.hole = this.draw(2)
       player.position = null
       player.locked = false
       player.history = []
     }
-    this.phase = 'preflop'
+
+    // malus "Pas de pré-flop" : on attaque directement au flop
+    this.phase = this.hasEffect('noPreflop') ? 'flop' : 'preflop'
+    this.board = this.draw(BOARD_SIZE[this.phase])
   }
 
   // Renvoie le joueur à qui on a piqué la position, s'il y en a un
@@ -133,6 +172,8 @@ export class Game {
   lock(playerId: string): void {
     if (!this.isBetting)
       throw new GameError('Pas de position à bloquer en ce moment.')
+    if (this.hasEffect('noLock'))
+      throw new GameError('Malus « Pas de blocage » : impossible de bloquer cette manche.')
     const player = this.requirePlayer(playerId)
     if (player.position === null)
       throw new GameError('Prends d\'abord une position avant de la bloquer.')
@@ -149,8 +190,9 @@ export class Game {
     if (!this.allPositioned)
       throw new GameError('Tout le monde doit avoir une position avant de passer au tour suivant.')
 
+    const phase = this.phase as BettingPhase
     for (const player of this.players) {
-      player.history.push({ position: player.position!, locked: player.locked })
+      player.history.push({ phase, position: player.position!, locked: player.locked })
       player.position = null
       player.locked = false
     }
@@ -160,14 +202,101 @@ export class Game {
       this.finishRound()
   }
 
+  // Malus "Chrono" : temps écoulé, ceux qui ne sont pas placés prennent les positions restantes et on passe
+  timeout(): void {
+    if (!this.isBetting)
+      return
+
+    const taken = new Set(this.players.map(player => player.position))
+    const free = this.players.map((_, i) => i + 1).filter(position => !taken.has(position))
+    for (const player of this.players.filter(other => other.position === null)) {
+      player.position = free.shift()!
+    }
+    this.advance()
+  }
+
+  // Bonus "Échange" : remplace une de ses cartes par une neuve du paquet
+  swapCard(playerId: string, cardIndex: number): void {
+    this.requireBonus('swap')
+    if (this.bonusUsage.swappedBy)
+      throw new GameError('L\'échange a déjà été utilisé cette manche.')
+    const player = this.requirePlayer(playerId)
+    this.requireCardIndex(cardIndex)
+
+    player.hole[cardIndex] = this.draw(1)[0]
+    this.bonusUsage.swappedBy = player.id
+  }
+
+  // Bonus "Révélation" : montre une de ses cartes à toute la table
+  revealCard(playerId: string, cardIndex: number): void {
+    this.requireBonus('reveal')
+    if (this.bonusUsage.revealed)
+      throw new GameError('La révélation a déjà été utilisée cette manche.')
+    const player = this.requirePlayer(playerId)
+    this.requireCardIndex(cardIndex)
+
+    this.bonusUsage.revealed = { playerId: player.id, card: player.hole[cardIndex] }
+  }
+
+  // Bonus "Indice" : la combinaison de la meilleure main du moment
+  useHint(playerId: string): void {
+    this.requireBonus('hint')
+    this.requirePlayer(playerId)
+    if (this.bonusUsage.hint)
+      throw new GameError('L\'indice a déjà été utilisé cette manche.')
+    this.requireFlop('L\'indice')
+
+    const best = this.players
+      .map(player => evaluateHand([...player.hole, ...this.board]))
+      .reduce((a, b) => (compareHands(a, b) >= 0 ? a : b))
+    this.bonusUsage.hint = { phase: this.phase as BettingPhase, category: best.category }
+  }
+
+  // Bonus "Vérification" : le classement actuel serait-il gagnant avec le tableau du moment ?
+  useCheck(playerId: string): void {
+    this.requireBonus('check')
+    this.requirePlayer(playerId)
+    if (this.bonusUsage.check)
+      throw new GameError('La vérification a déjà été utilisée cette manche.')
+    this.requireFlop('La vérification')
+    if (!this.allPositioned)
+      throw new GameError('Tout le monde doit avoir une position pour vérifier le classement.')
+
+    const current = this.players.map(player => ({ ...player, position: player.position! }))
+    this.bonusUsage.check = { phase: this.phase as BettingPhase, success: evaluateShowdown(current, this.board).success }
+  }
+
   private finishRound(): void {
     // seules les positions du dernier tour comptent
     const finalPositions = this.players.map(player => ({ ...player, position: player.history.at(-1)!.position }))
     this.result = evaluateShowdown(finalPositions, this.board)
+
+    // bonus "Seconde chance" : une seule inversion entre voisins est pardonnée
+    if (!this.result.success && this.hasEffect('secondChance') && isSingleAdjacentSwap(this.result.entries))
+      this.result = { ...this.result, success: true, rescued: true }
+
+    this.lastSuccess = this.result.success
     if (this.result.success)
       this.wins++
     else
       this.losses++
+  }
+
+  private requireBonus(id: BonusId): void {
+    if (!this.isBetting)
+      throw new GameError('Pas de bonus à utiliser en ce moment.')
+    if (!this.hasEffect(id))
+      throw new GameError('Ce bonus n\'est pas actif cette manche.')
+  }
+
+  private requireFlop(bonusName: string): void {
+    if (this.board.length < 3)
+      throw new GameError(`${bonusName} est dispo à partir du flop.`)
+  }
+
+  private requireCardIndex(cardIndex: number): void {
+    if (cardIndex !== 0 && cardIndex !== 1)
+      throw new GameError('Carte invalide.')
   }
 
   private draw(count: number): Card[] {
