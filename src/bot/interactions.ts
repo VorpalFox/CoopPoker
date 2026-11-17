@@ -26,7 +26,7 @@ async function handleCommand(interaction: ChatInputCommandInteraction): Promise<
   const channelId = interaction.channelId
 
   switch (interaction.options.getSubcommand()) {
-    case 'creer': {
+    case 'create': {
       if (games.has(channelId))
         throw new GameError('Il y a déjà une table dans ce salon (`/poker table` pour la réafficher, `/poker stop` pour la fermer).')
       const game = new Game()
@@ -104,7 +104,7 @@ async function freezeAndRepost(interaction: ButtonInteraction, game: Game, actio
 function requireGame(channelId: string): Game {
   const game = games.get(channelId)
   if (!game)
-    throw new GameError('Pas de table dans ce salon, ouvre-en une avec `/poker creer`.')
+    throw new GameError('Pas de table dans ce salon, ouvre-en une avec `/poker create`.')
   return game
 }
 

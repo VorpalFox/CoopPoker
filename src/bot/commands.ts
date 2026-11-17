@@ -4,8 +4,8 @@ export const COMMAND_NAME = 'poker'
 
 export const pokerCommand = new SlashCommandBuilder()
   .setName(COMMAND_NAME)
-  .setDescription('Poker coopératif')
+  .setDescription('Cooperative poker')
   .setContexts(InteractionContextType.Guild)
-  .addSubcommand(sub => sub.setName('creer').setDescription('Ouvre une table dans ce salon'))
-  .addSubcommand(sub => sub.setName('table').setDescription('Réaffiche la table en bas du salon'))
-  .addSubcommand(sub => sub.setName('stop').setDescription('Ferme la table de ce salon'))
+  .addSubcommand(sub => sub.setName('create').setDescription('Open a table in this channel'))
+  .addSubcommand(sub => sub.setName('table').setDescription('Show the table again at the bottom of the channel'))
+  .addSubcommand(sub => sub.setName('stop').setDescription('Close the table in this channel'))

@@ -4,7 +4,7 @@ Bot Discord de poker coopératif. Chacun reçoit 2 cartes. À chaque tour (pré-
 
 ## Utilisation
 
-- `/poker creer` : ouvre une table dans le salon. Les autres cliquent sur **Rejoindre**, puis **Lancer**.
+- `/poker create` : ouvre une table dans le salon. Les autres cliquent sur **Rejoindre**, puis **Lancer**.
 - **🂠 Mes cartes** : affiche tes cartes en privé, avec ta meilleure main dès le flop.
 - **1..n** : prend une position, même si elle est déjà prise. Re-cliquer sur la sienne la rend.
 - **🔒 Bloquer / débloquer ma position** : retourne ton jeton. Plus personne ne peut te le voler, et tu ne peux plus en changer avant de le débloquer. À l'écran, ⚪ = libre et ⚫ = bloqué, y compris dans l'historique.
