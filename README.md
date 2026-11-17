@@ -22,6 +22,37 @@ Les parties sont gardées en mémoire : un redémarrage du bot les efface.
 
 Le bot demande seulement les permissions `View Channels`, `Send Messages` et `Embed Links`.
 
+## Bonus et malus
+
+Une manche gagnée donne un **malus** pour la suivante, une manche perdue donne un **bonus**. L'effet est tiré au hasard et affiché dans le message d'infos de la manche. La toute première manche n'en a pas.
+
+- **Mode normal** : un seul effet, qui ne dure qu'une manche.
+- **🌀 Mode chaos** (bouton à bascule dans le salon d'attente et sur le résultat de manche) : les effets s'accumulent. Une victoire retire le plus vieux bonus s'il y en a un, et ajoute un malus. Une défaite retire le plus vieux malus et ajoute un bonus. Par exemple, 3 victoires d'affilée donnent 3 malus, et une défaite derrière laisse 2 malus et 1 bonus.
+
+Le même effet n'est jamais actif deux fois. Si tous ceux d'une sorte le sont déjà, rien ne s'ajoute.
+
+### 😈 Malus
+
+| | Malus | Effet |
+|---|---|---|
+| 🔓 | Pas de blocage | Impossible de bloquer sa position. |
+| ⏭️ | Pas de pré-flop | La manche commence directement au flop. |
+| 🙈 | Historique masqué | Les positions des tours précédents restent cachées jusqu'au résultat. |
+| ⏱️ | Chrono | 20 s par joueur et par tour, avec un compte à rebours sur la table. Au bout du temps, ceux qui ne sont pas placés prennent les positions restantes et le tour passe. |
+| 🎭 | Positions anonymes | Les boutons ne montrent pas qui tient quelle position. |
+
+### 😇 Bonus
+
+| | Bonus | Effet |
+|---|---|---|
+| 🔄 | Échange | Le premier qui clique remplace une de ses deux cartes par une carte du paquet. |
+| 👁️ | Révélation | Le premier qui clique montre une de ses cartes à toute la table. |
+| 💡 | Indice | Une fois, à partir du flop, le bot annonce la combinaison de la meilleure main du moment. |
+| ✔️ | Vérification | Une fois, à partir du flop, quand tout le monde est placé, le bot dit si le classement actuel serait gagnant avec le tableau du moment. |
+| 🍀 | Seconde chance | À la fin, une seule inversion entre deux joueurs voisins est pardonnée. |
+
+Les bonus à utiliser apparaissent comme boutons sous la table, et ce qu'ils ont révélé reste affiché sur la table jusqu'à la fin de la manche.
+
 ## Le bot Discord
 
 L'appli existe déjà : son Application ID `1572236813710663812` est pré-rempli dans `.env.example`.

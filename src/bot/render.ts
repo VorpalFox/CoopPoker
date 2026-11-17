@@ -1,5 +1,6 @@
 import { ActionRowBuilder, type BaseMessageOptions, ButtonBuilder, ButtonStyle, EmbedBuilder, escapeMarkdown } from 'discord.js'
-import { type Card, formatCards } from '../game/cards.js'
+import { type Card, formatCard, formatCards } from '../game/cards.js'
+import { EFFECTS, type EffectId, type EffectKind } from '../game/effects.js'
 import { type Game, MAX_PLAYERS, MIN_PLAYERS, type Phase, type Player } from '../game/game.js'
 import { evaluateHand, HAND_NAMES } from '../game/handEvaluator.js'
 import { type ShowdownEntry } from '../game/showdown.js'
@@ -9,13 +10,22 @@ export const BUTTON_IDS = {
   join: `${BUTTON_PREFIX}:join`,
   leave: `${BUTTON_PREFIX}:leave`,
   start: `${BUTTON_PREFIX}:start`,
+  chaos: `${BUTTON_PREFIX}:chaos`,
   cards: `${BUTTON_PREFIX}:cards`,
   lock: `${BUTTON_PREFIX}:lock`,
   next: `${BUTTON_PREFIX}:next`,
   replay: `${BUTTON_PREFIX}:replay`,
   help: `${BUTTON_PREFIX}:help`,
+  swap: `${BUTTON_PREFIX}:swap`,
+  reveal: `${BUTTON_PREFIX}:reveal`,
+  hint: `${BUTTON_PREFIX}:hint`,
+  check: `${BUTTON_PREFIX}:check`,
 }
 export const POSITION_BUTTON_ID = (position: number) => `${BUTTON_PREFIX}:pos:${position}`
+// Choix de la carte à échanger / montrer (cp:swap:0, cp:reveal:1...)
+export const CARD_CHOICE_ID = (kind: CardChoiceKind, cardIndex: number) => `${BUTTON_PREFIX}:${kind}:${cardIndex}`
+
+export type CardChoiceKind = 'swap' | 'reveal'
 
 const PHASE_LABELS: Record<Phase, string> = {
   lobby: 'Salle d\'attente',
@@ -26,7 +36,6 @@ const PHASE_LABELS: Record<Phase, string> = {
   showdown: 'Abattage',
 }
 
-const ROUND_LABELS = ['Pré-flop', 'Flop', 'Turn', 'River']
 const HISTORY_NAME_WIDTH = 12
 const HISTORY_CELL_WIDTH = 8 // largeur de 'Pré-flop', le plus long libellé
 
@@ -55,17 +64,24 @@ const HAND_RANKING = [
 const COLORS = { lobby: 0x5865f2, betting: 0x2b8a3e, info: 0x868e96, win: 0xf59f00, loss: 0xe03131 }
 const BUTTONS_PER_ROW = 5
 
-export function renderTable(game: Game, { withButtons = true } = {}): BaseMessageOptions {
+interface TableOptions {
+  withButtons?: boolean
+  deadline?: number | null // fin du tour en ms (malus Chrono)
+}
+
+export function renderTable(game: Game, { withButtons = true, deadline = null }: TableOptions = {}): BaseMessageOptions {
   return {
-    embeds: [tableEmbed(game, withButtons)],
+    embeds: [tableEmbed(game, withButtons, deadline)],
     components: withButtons ? tableButtons(game) : [],
   }
 }
 
-// Message du haut : les infos fixes de la manche (règles, combinaisons, n° de manche, score).
-// Mis à jour seulement quand une nouvelle manche commence.
+// Message du haut : les infos fixes de la manche (règles, n° de manche, score, bonus / malus)
 export function renderInfo(game: Game): BaseMessageOptions {
-  const embed = rulesEmbed(COLORS.info).setTitle(`🃏 Poker coopératif · Manche ${handNumber(game)}`)
+  const chaos = game.chaosMode ? ' · 🌀 Chaos' : ''
+  const embed = rulesEmbed(COLORS.info).setTitle(`🃏 Poker coopératif · Manche ${handNumber(game)}${chaos}`)
+  addEffects(embed, game.effects, 'malus', '😈 Malus')
+  addEffects(embed, game.effects, 'bonus', '😇 Bonus')
   if (game.wins + game.losses > 0)
     embed.addFields({ name: 'Score', value: `${game.wins} 🎉 / ${game.losses} 💥` })
   return { embeds: [embed], components: [row(helpButton())] }
@@ -76,7 +92,7 @@ export function renderHandRanking(): BaseMessageOptions {
   return { content: `## 🏆 Combinaisons, de la plus forte à la plus faible\n${HAND_RANKING}` }
 }
 
-// Cartes d'un joueur, en message caché (bouton "Mes cartes" ou clic sur Lancer / Rejouer)
+// Cartes d'un joueur, en message caché (bouton "Mes cartes")
 export function renderHoleCards(game: Game, player: Player): BaseMessageOptions {
   const lines = [`Tes cartes : **${formatCards(player.hole)}**`]
   if (game.board.length > 0) {
@@ -84,7 +100,14 @@ export function renderHoleCards(game: Game, player: Player): BaseMessageOptions 
     lines.push(`Tableau : ${formatCards(game.board)}`)
     lines.push(`Ta main : **${HAND_NAMES[hand.category]}** (${formatCards(hand.cards)})`)
   }
-  return { content: lines.join('\n') }
+  return { content: lines.join('\n'), components: [] }
+}
+
+// Réponse privée des bonus Échange / Révélation : on choisit la carte
+export function renderCardChoice(player: Player, kind: CardChoiceKind): BaseMessageOptions {
+  const question = kind === 'swap' ? '🔄 Quelle carte veux-tu échanger ?' : '👁️ Quelle carte veux-tu montrer à la table ?'
+  const buttons = player.hole.map((card, i) => button(CARD_CHOICE_ID(kind, i), formatCard(card), ButtonStyle.Primary))
+  return { content: question, components: [row(...buttons)] }
 }
 
 // Numéro de la manche en cours (ou qui vient de se finir à l'abattage)
@@ -92,14 +115,14 @@ export function handNumber(game: Game): number {
   return game.wins + game.losses + (game.phase === 'showdown' ? 0 : 1)
 }
 
-function tableEmbed(game: Game, withFooter: boolean): EmbedBuilder {
+function tableEmbed(game: Game, withFooter: boolean, deadline: number | null): EmbedBuilder {
   switch (game.phase) {
     case 'lobby':
       return lobbyEmbed(game)
     case 'showdown':
       return showdownEmbed(game)
     default:
-      return bettingEmbed(game, withFooter)
+      return bettingEmbed(game, withFooter, deadline)
   }
 }
 
@@ -116,13 +139,17 @@ function lobbyEmbed(game: Game): EmbedBuilder {
     .addFields({ name: `Joueurs (${game.players.length}/${MAX_PLAYERS})`, value: players || '_Personne pour l\'instant_' })
 }
 
-// Les positions en cours sont sur les boutons, la table montre seulement le tableau et l'historique
-function bettingEmbed(game: Game, withFooter: boolean): EmbedBuilder {
+// Les positions en cours sont sur les boutons, la table montre le tableau, l'historique et les bonus utilisés
+function bettingEmbed(game: Game, withFooter: boolean, deadline: number | null): EmbedBuilder {
+  // <t:...:R> : Discord affiche un compte à rebours ("dans 40 secondes") qui se met à jour tout seul
+  const timer = deadline ? `\n⏱️ Fin du tour <t:${Math.ceil(deadline / 1000)}:R>` : ''
   const embed = new EmbedBuilder()
     .setColor(COLORS.betting)
     .setTitle(`🃏 ${PHASE_LABELS[game.phase]}`)
-    .setDescription(boardText(game.board))
-  addHistory(embed, game)
+    .setDescription(`${boardText(game.board)}${timer}`)
+  if (!game.hasEffect('hiddenHistory'))
+    addHistory(embed, game)
+  addBonusUsage(embed, game)
 
   if (!withFooter)
     return embed
@@ -135,25 +162,36 @@ function bettingEmbed(game: Game, withFooter: boolean): EmbedBuilder {
 
 function showdownEmbed(game: Game): EmbedBuilder {
   const result = game.result!
+  const title = result.rescued
+    ? '🍀 Une inversion pardonnée, manche gagnée !'
+    : result.success ? '🎉 Classement parfait, manche gagnée !' : '💥 Classement raté, manche perdue...'
   const embed = new EmbedBuilder()
     .setColor(result.success ? COLORS.win : COLORS.loss)
-    .setTitle(result.success ? '🎉 Classement parfait, manche gagnée !' : '💥 Classement raté, manche perdue...')
+    .setTitle(title)
     .setDescription(boardText(game.board))
     .addFields({ name: 'Résultat', value: result.entries.map(showdownLine).join('\n') })
   addHistory(embed, game)
+  addBonusUsage(embed, game)
   return embed
+}
+
+function addEffects(embed: EmbedBuilder, effects: EffectId[], kind: EffectKind, title: string): void {
+  const lines = effects
+    .filter(id => EFFECTS[id].kind === kind)
+    .map(id => `${EFFECTS[id].emoji} **${EFFECTS[id].name}** : ${EFFECTS[id].description}`)
+  if (lines.length > 0)
+    embed.addFields({ name: title, value: lines.join('\n') })
 }
 
 // Tableau en bloc de code : une ligne par joueur, une colonne par tour joué
 function addHistory(embed: EmbedBuilder, game: Game): void {
-  const roundCount = Math.max(0, ...game.players.map(player => player.history.length))
-  if (roundCount === 0)
+  const rounds = game.players[0]?.history.map(entry => PHASE_LABELS[entry.phase]) ?? []
+  if (rounds.length === 0)
     return
 
   // pas de ` dans un bloc de code, ça le casserait
   const names = game.players.map(player => truncate(player.name.replaceAll('`', ''), HISTORY_NAME_WIDTH))
   const nameWidth = Math.max(...names.map(name => name.length))
-  const rounds = ROUND_LABELS.slice(0, roundCount)
 
   const header = [''.padEnd(nameWidth), ...rounds.map(label => label.padEnd(HISTORY_CELL_WIDTH))].join(' ')
   const rows = game.players.map((player, i) => [
@@ -163,6 +201,23 @@ function addHistory(embed: EmbedBuilder, game: Game): void {
   ].join(' '))
   const table = ['```', header.trimEnd(), ...rows.map(row => row.trimEnd()), '```'].join('\n')
   embed.addFields({ name: '📜 Historique de la manche (● libre · ○ bloquée)', value: table })
+}
+
+function addBonusUsage(embed: EmbedBuilder, game: Game): void {
+  const { swappedBy, revealed, hint, check } = game.bonusUsage
+  const nameOf = (playerId: string) => escapeMarkdown(game.findPlayer(playerId)?.name ?? '?')
+
+  const lines: string[] = []
+  if (swappedBy)
+    lines.push(`🔄 ${nameOf(swappedBy)} a échangé une carte`)
+  if (revealed)
+    lines.push(`👁️ ${nameOf(revealed.playerId)} montre **${formatCard(revealed.card)}**`)
+  if (hint)
+    lines.push(`💡 Au ${PHASE_LABELS[hint.phase].toLowerCase()}, la meilleure main est : **${HAND_NAMES[hint.category]}**`)
+  if (check)
+    lines.push(`✔️ Au ${PHASE_LABELS[check.phase].toLowerCase()}, le classement vérifié ${check.success ? 'était **bon** ✅' : 'était **faux** ❌'}`)
+  if (lines.length > 0)
+    embed.addFields({ name: '😇 Bonus utilisés', value: lines.join('\n') })
 }
 
 function showdownLine(entry: ShowdownEntry): string {
@@ -186,38 +241,60 @@ function tableButtons(game: Game): ActionRowBuilder<ButtonBuilder>[] {
         button(BUTTON_IDS.join, 'Rejoindre', ButtonStyle.Primary),
         button(BUTTON_IDS.leave, 'Quitter', ButtonStyle.Secondary),
         button(BUTTON_IDS.start, 'Lancer', ButtonStyle.Success).setDisabled(game.players.length < MIN_PLAYERS),
+        chaosButton(game),
       )]
     case 'showdown':
       return [row(
         button(BUTTON_IDS.replay, 'Rejouer', ButtonStyle.Success).setDisabled(game.players.length < MIN_PLAYERS),
         button(BUTTON_IDS.join, 'Rejoindre', ButtonStyle.Primary),
         button(BUTTON_IDS.leave, 'Quitter', ButtonStyle.Secondary),
+        chaosButton(game),
       )]
-    default:
-      return [
-        ...positionRows(game),
-        row(
-          button(BUTTON_IDS.cards, '🂠 Mes cartes', ButtonStyle.Secondary),
-          // commun à tous : on ne peut le griser que quand plus personne n'a rien à bloquer
-          button(BUTTON_IDS.lock, '🔒 Bloquer ma position', ButtonStyle.Secondary).setDisabled(game.allLocked),
-          button(BUTTON_IDS.next, game.phase === 'river' ? 'Révéler ▶' : 'Tour suivant ▶', ButtonStyle.Success).setDisabled(!game.allPositioned),
-        ),
-      ]
+    default: {
+      const actions = [button(BUTTON_IDS.cards, '🂠 Mes cartes', ButtonStyle.Secondary)]
+      // malus "Pas de blocage" : pas de bouton du tout.
+      // Sinon il est commun à tous : on ne peut le griser que quand plus personne n'a rien à bloquer
+      if (!game.hasEffect('noLock'))
+        actions.push(button(BUTTON_IDS.lock, '🔒 Bloquer ma position', ButtonStyle.Secondary).setDisabled(game.allLocked))
+      actions.push(button(BUTTON_IDS.next, game.phase === 'river' ? 'Révéler ▶' : 'Tour suivant ▶', ButtonStyle.Success).setDisabled(!game.allPositioned))
+
+      const bonuses = bonusButtons(game)
+      return [...positionRows(game), row(...actions), ...(bonuses.length > 0 ? [row(...bonuses)] : [])]
+    }
   }
+}
+
+// Un bouton par bonus actif pas encore utilisé
+function bonusButtons(game: Game): ButtonBuilder[] {
+  const { swappedBy, revealed, hint, check } = game.bonusUsage
+  const beforeFlop = game.board.length < 3
+  const buttons: ButtonBuilder[] = []
+  if (game.hasEffect('swap') && !swappedBy)
+    buttons.push(button(BUTTON_IDS.swap, '🔄 Échanger une carte', ButtonStyle.Primary))
+  if (game.hasEffect('reveal') && !revealed)
+    buttons.push(button(BUTTON_IDS.reveal, '👁️ Montrer une carte', ButtonStyle.Primary))
+  if (game.hasEffect('hint') && !hint)
+    buttons.push(button(BUTTON_IDS.hint, '💡 Indice', ButtonStyle.Primary).setDisabled(beforeFlop))
+  if (game.hasEffect('check') && !check)
+    buttons.push(button(BUTTON_IDS.check, '✔️ Vérifier le classement', ButtonStyle.Primary).setDisabled(beforeFlop || !game.allPositioned))
+  return buttons
 }
 
 // Boutons 1..n : bleus si libres, verts si pris, gris désactivés si bloqués (même texte, seuls la couleur et le clic changent)
 // (Discord n'a pas de bouton noir, le gris désactivé est le plus sombre dispo)
+// Malus "Positions anonymes" : juste le numéro, sans le nom
 function positionRows(game: Game): ActionRowBuilder<ButtonBuilder>[] {
+  const anonymous = game.hasEffect('anonymous')
   const buttons = game.players.map((_, i) => {
     const position = i + 1
     const id = POSITION_BUTTON_ID(position)
     const holder = game.players.find(player => player.position === position)
     if (!holder)
       return button(id, `${position}`, ButtonStyle.Primary)
+    const label = anonymous ? `${position}` : `${position} · ${truncate(holder.name, 20)}`
     if (holder.locked)
-      return button(id, `${position} · ${truncate(holder.name, 20)}`, ButtonStyle.Secondary).setDisabled(true)
-    return button(id, `${position} · ${truncate(holder.name, 20)}`, ButtonStyle.Success)
+      return button(id, label, ButtonStyle.Secondary).setDisabled(true)
+    return button(id, label, ButtonStyle.Success)
   })
 
   const rows: ActionRowBuilder<ButtonBuilder>[] = []
@@ -225,6 +302,16 @@ function positionRows(game: Game): ActionRowBuilder<ButtonBuilder>[] {
     rows.push(row(...buttons.slice(i, i + BUTTONS_PER_ROW)))
   }
   return rows
+}
+
+function chaosButton(game: Game): ButtonBuilder {
+  return game.chaosMode
+    ? button(BUTTON_IDS.chaos, '🌀 Mode chaos : activé', ButtonStyle.Danger)
+    : button(BUTTON_IDS.chaos, '🌀 Mode chaos : désactivé', ButtonStyle.Secondary)
+}
+
+function helpButton(): ButtonBuilder {
+  return button(BUTTON_IDS.help, '🏆 Détails des combinaisons', ButtonStyle.Secondary)
 }
 
 function button(customId: string, label: string, style: ButtonStyle): ButtonBuilder {
@@ -237,8 +324,4 @@ function row(...buttons: ButtonBuilder[]): ActionRowBuilder<ButtonBuilder> {
 
 function truncate(text: string, maxLength: number): string {
   return text.length > maxLength ? `${text.slice(0, maxLength - 1)}…` : text
-}
-
-function helpButton(): ButtonBuilder {
-  return button(BUTTON_IDS.help, '🏆 Détails des combinaisons', ButtonStyle.Secondary)
 }

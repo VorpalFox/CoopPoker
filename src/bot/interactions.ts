@@ -1,15 +1,20 @@
-import { type ButtonInteraction, type ChatInputCommandInteraction, type Interaction, MessageFlags, type RepliableInteraction, type SendableChannels } from 'discord.js'
+import { type ButtonInteraction, type ChatInputCommandInteraction, type Interaction, type Message, MessageFlags, type RepliableInteraction, type SendableChannels } from 'discord.js'
+import { TIMER_SECONDS_PER_PLAYER } from '../game/effects.js'
 import { Game, GameError } from '../game/game.js'
 import { COMMAND_NAME } from './commands.js'
-import { BUTTON_PREFIX, renderHandRanking, renderHoleCards, renderInfo, renderTable } from './render.js'
+import { BUTTON_PREFIX, type CardChoiceKind, renderCardChoice, renderHandRanking, renderHoleCards, renderInfo, renderTable } from './render.js'
 
-// Une manche = 2 messages dans le salon : les infos fixes de la manche (règles, n° de manche, score)
+// Une manche = 2 messages dans le salon : les infos fixes de la manche (règles, n° de manche, score, bonus / malus)
 // et la table juste en dessous, modifiée sur place à chaque clic. Chaque nouvelle manche reposte les 2.
 interface TableSession {
   game: Game
+  tableMessage: Message | null // pour modifier la table sans clic dessus (chrono, choix de carte)
   // dernier clic "Mes cartes" de chaque joueur pour la manche en cours. Discord laisse le bot
   // modifier la réponse cachée pendant 15 min : on s'en sert pour la mettre à jour à chaque tour.
   cardViews: Map<string, ButtonInteraction>
+  // malus "Chrono"
+  timer: NodeJS.Timeout | null
+  deadline: number | null
 }
 
 // Une table par salon, gardée en mémoire (perdue au redémarrage du bot, c'est assumé)
@@ -40,18 +45,23 @@ async function handleCommand(interaction: ChatInputCommandInteraction): Promise<
         throw new GameError('Il y a déjà une table dans ce salon (`/poker table` pour la réafficher, `/poker stop` pour la fermer).')
       const game = new Game()
       game.join(interaction.user.id, displayName(interaction))
-      sessions.set(channelId, { game, cardViews: new Map() })
+      sessions.set(channelId, { game, tableMessage: null, cardViews: new Map(), timer: null, deadline: null })
       await interaction.reply(renderTable(game))
       return
     }
-    case 'table':
-      await interaction.reply(renderTable(requireSession(channelId).game))
+    case 'table': {
+      const session = requireSession(channelId)
+      const response = await interaction.reply({ ...table(session), withResponse: true })
+      session.tableMessage = response.resource?.message ?? session.tableMessage
       return
-    case 'stop':
-      requireSession(channelId)
+    }
+    case 'stop': {
+      const session = requireSession(channelId)
+      stopTimer(session)
       sessions.delete(channelId)
       await interaction.reply('🛑 Table fermée.')
       return
+    }
   }
 }
 
@@ -77,13 +87,19 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
       game.leave(userId)
       await interaction.update(renderTable(game))
       return
+    case 'chaos':
+      game.requirePlayer(userId)
+      game.toggleChaos()
+      await interaction.update(renderTable(game))
+      return
     case 'start':
       game.requirePlayer(userId)
       game.start()
+      startRoundTimer(session)
       // le salon d'attente devient le rappel des règles, la table s'affiche juste en dessous
       await interaction.update(renderInfo(game))
-      await requireChannel(interaction).send(renderTable(game))
       session.cardViews.clear() // nouvelle manche : chacun re-clique sur "Mes cartes"
+      session.tableMessage = await requireChannel(interaction).send(table(session))
       return
     case 'cards':
       await interaction.reply({ ...renderHoleCards(game, game.requirePlayer(userId)), flags: MessageFlags.Ephemeral })
@@ -91,18 +107,30 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
       return
     case 'pos':
       game.takePosition(userId, Number(arg))
-      await interaction.update(renderTable(game))
+      await updateTable(interaction, session)
       return
     case 'lock':
       game.lock(userId)
-      await interaction.update(renderTable(game))
+      await updateTable(interaction, session)
       return
     case 'next':
       game.requirePlayer(userId)
       game.advance()
-      await interaction.update(renderTable(game))
-      if (game.phase !== 'showdown')
-        await refreshCardViews(session)
+      startRoundTimer(session)
+      await updateTable(interaction, session)
+      await refreshCardViews(session)
+      return
+    case 'swap':
+    case 'reveal':
+      await handleCardChoice(interaction, session, action, arg)
+      return
+    case 'hint':
+      game.useHint(userId)
+      await updateTable(interaction, session)
+      return
+    case 'check':
+      game.useCheck(userId)
+      await updateTable(interaction, session)
       return
     case 'replay': {
       game.requirePlayer(userId)
@@ -110,20 +138,87 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
       // puis on reposte les 2 messages de la nouvelle manche en dessous
       const finishedHand = renderTable(game, { withButtons: false })
       game.start()
+      startRoundTimer(session)
       await interaction.update(finishedHand)
+      session.cardViews.clear() // nouvelle manche : chacun re-clique sur "Mes cartes"
       const channel = requireChannel(interaction)
       await channel.send(renderInfo(game))
-      await channel.send(renderTable(game))
-      session.cardViews.clear() // nouvelle manche : chacun re-clique sur "Mes cartes"
+      session.tableMessage = await channel.send(table(session))
       return
     }
   }
 }
 
-// Met à jour les messages cachés avec le nouveau tableau et la meilleure main de chacun.
+// Bonus Échange / Révélation, en 2 clics : le bouton de la table ouvre un choix caché, puis on choisit la carte
+async function handleCardChoice(interaction: ButtonInteraction, session: TableSession, kind: CardChoiceKind, cardIndex: string | undefined): Promise<void> {
+  const { game } = session
+  const player = game.requirePlayer(interaction.user.id)
+
+  if (cardIndex === undefined) {
+    await interaction.reply({ ...renderCardChoice(player, kind), flags: MessageFlags.Ephemeral })
+    return
+  }
+
+  if (kind === 'swap')
+    game.swapCard(player.id, Number(cardIndex))
+  else
+    game.revealCard(player.id, Number(cardIndex))
+  await interaction.update(renderHoleCards(game, player))
+  await editTable(session)
+  await refreshCardViews(session)
+}
+
+// La table sur laquelle on vient de cliquer : on la modifie et on retient ce message
+async function updateTable(interaction: ButtonInteraction, session: TableSession): Promise<void> {
+  await interaction.update(table(session))
+  session.tableMessage = interaction.message
+}
+
+// La table quand le clic vient d'ailleurs (chrono, choix de carte en message caché)
+async function editTable(session: TableSession): Promise<void> {
+  await session.tableMessage?.edit(table(session))
+    .catch(error => console.warn('Table introuvable, pas mise à jour', error))
+}
+
+function table(session: TableSession) {
+  return renderTable(session.game, { deadline: session.deadline })
+}
+
+// Malus "Chrono" : relancé à chaque tour, coupé hors manche ou sans le malus
+function startRoundTimer(session: TableSession): void {
+  stopTimer(session)
+  const { game } = session
+  if (!game.isBetting || !game.hasEffect('timer'))
+    return
+
+  const duration = TIMER_SECONDS_PER_PLAYER * 1000 * game.players.length
+  session.deadline = Date.now() + duration
+  session.timer = setTimeout(() => {
+    onTimeout(session).catch(error => console.error('Erreur à la fin du chrono', error))
+  }, duration)
+}
+
+function stopTimer(session: TableSession): void {
+  if (session.timer)
+    clearTimeout(session.timer)
+  session.timer = null
+  session.deadline = null
+}
+
+async function onTimeout(session: TableSession): Promise<void> {
+  session.game.timeout()
+  startRoundTimer(session)
+  await editTable(session)
+  await refreshCardViews(session)
+}
+
+// Met à jour les messages cachés avec le tableau et la meilleure main de chacun.
 // Au-delà de 15 min Discord refuse : on oublie ce message, le joueur re-cliquera sur "Mes cartes".
 async function refreshCardViews(session: TableSession): Promise<void> {
   const { game, cardViews } = session
+  if (!game.isBetting)
+    return
+
   await Promise.all([...cardViews].map(async ([playerId, cardsClick]) => {
     const player = game.findPlayer(playerId)
     if (!player)
