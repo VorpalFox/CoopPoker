@@ -5,10 +5,12 @@ import { BUTTON_PREFIX, handNumber, renderHoleCards, renderInfo, renderTable } f
 
 const CARDS_HEADER = (channelId: string, hand: number) => `🃏 Manche ${hand} dans <#${channelId}>`
 
-// Une partie = 2 messages dans le salon : les règles (fixes une fois la partie lancée)
+// Une partie = 2 messages dans le salon :
+// les infos fixes de la manche (règles, n° de manche, score), mises à jour à chaque nouvelle manche,
 // et la table juste en dessous, modifiée sur place à chaque clic
 interface TableSession {
   game: Game
+  infoMessage: Message | null
   cardMessages: Map<string, Message> // MP de chaque joueur, réutilisé d'une manche à l'autre
 }
 
@@ -40,7 +42,7 @@ async function handleCommand(interaction: ChatInputCommandInteraction): Promise<
         throw new GameError('Il y a déjà une table dans ce salon (`/poker table` pour la réafficher, `/poker stop` pour la fermer).')
       const game = new Game()
       game.join(interaction.user.id, displayName(interaction))
-      sessions.set(channelId, { game, cardMessages: new Map() })
+      sessions.set(channelId, { game, infoMessage: null, cardMessages: new Map() })
       await interaction.reply(renderTable(game))
       return
     }
@@ -74,7 +76,8 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
       game.requirePlayer(userId)
       game.start()
       // le salon d'attente devient le rappel des règles, la table s'affiche juste en dessous
-      await interaction.update(renderInfo())
+      await interaction.update(renderInfo(game))
+      session.infoMessage = interaction.message
       await requireChannel(interaction).send(renderTable(game))
       await dealCards(interaction, session)
       return
@@ -100,6 +103,9 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
       game.requirePlayer(userId)
       game.start()
       await interaction.update(renderTable(game))
+      // nouvelle manche : n° de manche et score à jour dans le message du haut
+      await session.infoMessage?.edit(renderInfo(game))
+        .catch(error => console.warn('Message d\'infos introuvable, pas mis à jour', error))
       await dealCards(interaction, session)
       return
   }

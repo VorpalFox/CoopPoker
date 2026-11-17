@@ -61,9 +61,13 @@ export function renderTable(game: Game, { withButtons = true } = {}): BaseMessag
   }
 }
 
-// Message du haut pendant la partie : règles + combinaisons, il ne bouge plus une fois la partie lancée
-export function renderInfo(): BaseMessageOptions {
-  return { embeds: [rulesEmbed(COLORS.info)], components: [] }
+// Message du haut : les infos fixes de la manche (règles, combinaisons, n° de manche, score).
+// Mis à jour seulement quand une nouvelle manche commence.
+export function renderInfo(game: Game): BaseMessageOptions {
+  const embed = rulesEmbed(COLORS.info).setTitle(`🃏 Poker coopératif · Manche ${handNumber(game)}`)
+  if (game.wins + game.losses > 0)
+    embed.addFields({ name: 'Score', value: `${game.wins} 🎉 / ${game.losses} 💥` })
+  return { embeds: [embed], components: [] }
 }
 
 // Cartes d'un joueur : en MP à chaque manche, ou en réponse privée au bouton "Mes cartes"
@@ -112,10 +116,9 @@ function lobbyEmbed(game: Game): EmbedBuilder {
 function bettingEmbed(game: Game, withFooter: boolean): EmbedBuilder {
   const embed = new EmbedBuilder()
     .setColor(COLORS.betting)
-    .setTitle(`🃏 Manche ${handNumber(game)} · ${PHASE_LABELS[game.phase]}`)
+    .setTitle(`🃏 ${PHASE_LABELS[game.phase]}`)
     .setDescription(boardText(game.board))
   addHistory(embed, game)
-  addScore(embed, game)
 
   if (!withFooter)
     return embed
@@ -130,13 +133,10 @@ function showdownEmbed(game: Game): EmbedBuilder {
   const result = game.result!
   const embed = new EmbedBuilder()
     .setColor(result.success ? COLORS.win : COLORS.loss)
-    .setTitle(result.success
-      ? `🎉 Manche ${handNumber(game)} : classement parfait, tout le monde gagne !`
-      : `💥 Manche ${handNumber(game)} : raté, le classement n'était pas bon...`)
+    .setTitle(result.success ? '🎉 Classement parfait, tout le monde gagne !' : '💥 Raté, le classement n\'était pas bon...')
     .setDescription(boardText(game.board))
     .addFields({ name: 'Résultat', value: result.entries.map(showdownLine).join('\n') })
   addHistory(embed, game)
-  addScore(embed, game)
   return embed
 }
 
@@ -169,12 +169,6 @@ function showdownLine(entry: ShowdownEntry): string {
 
 function boardText(board: Card[]): string {
   return board.length > 0 ? `## ${formatCards(board)}` : '_Pas encore de cartes au tableau_'
-}
-
-function addScore(embed: EmbedBuilder, game: Game): void {
-  if (game.wins + game.losses === 0)
-    return
-  embed.addFields({ name: 'Score', value: `${game.wins} 🎉 / ${game.losses} 💥` })
 }
 
 function playerName(player: Player): string {
