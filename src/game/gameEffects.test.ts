@@ -463,6 +463,28 @@ describe('Game avec bonus / malus', () => {
     expect(() => game.useCensus('alice', 15)).toThrow(GameError)
   })
 
+  it('useDuel_AuFlop_DitQuiEstDevant', () => {
+    startWith('duel')
+    playRound(1, 2)
+
+    game.useDuel('alice', 'bob', 'alice')
+
+    expect(game.bonusUsage.duel).toEqual({ phase: 'flop', firstId: 'bob', secondId: 'alice', comparison: -1 })
+    expect(() => game.useDuel('alice', 'alice', 'bob')).toThrow(GameError)
+  })
+
+  it('useDuel_DeuxFoisLeMemeJoueur_Refuse', () => {
+    startWith('duel')
+    playRound(1, 2)
+
+    expect(() => game.useDuel('alice', 'bob', 'bob')).toThrow(GameError)
+  })
+
+  it('duelTargets_AvantLeFlop_Refuse', () => {
+    startWith('duel')
+    expect(() => game.duelTargets()).toThrow(GameError)
+  })
+
   it('finishRound_SecondeChanceInversionVoisins_Gagne', () => {
     startWith('secondChance')
     for (let i = 0; i < 4; i++) {

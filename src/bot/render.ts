@@ -25,6 +25,7 @@ export const BUTTON_IDS = {
   spy: `${BUTTON_PREFIX}:spy`,
   redLantern: `${BUTTON_PREFIX}:redLantern`,
   census: `${BUTTON_PREFIX}:census`,
+  duel: `${BUTTON_PREFIX}:duel`,
   mountain: `${BUTTON_PREFIX}:mountain`,
   bilge: `${BUTTON_PREFIX}:bilge`,
   deadCards: `${BUTTON_PREFIX}:deadCards`,
@@ -36,13 +37,16 @@ export const CARD_CHOICE_ID = (kind: CardChoiceKind, cardIndex: number) => `${BU
 export const RANK_CHOICE_ID = (rank: number) => `${BUTTON_IDS.census}:${rank}`
 // Choix du joueur visé (cp:compass:<id du joueur>)
 export const PLAYER_CHOICE_ID = (kind: PlayerChoiceKind, playerId: string) => `${BUTTON_PREFIX}:${kind}:${playerId}`
+// 2e joueur du Duel (cp:duel:<id du 1er>:<id du 2e>)
+export const DUEL_CHOICE_ID = (firstId: string, secondId: string) => `${BUTTON_IDS.duel}:${firstId}:${secondId}`
 
 export type CardChoiceKind = 'swap' | 'reveal'
-export type PlayerChoiceKind = 'compass' | 'spy'
+export type PlayerChoiceKind = 'compass' | 'spy' | 'duel'
 
 const PLAYER_CHOICE_QUESTIONS: Record<PlayerChoiceKind, string> = {
   compass: '🧭 Quel joueur veux-tu vérifier ?',
   spy: '🕵️ Quel joueur veux-tu espionner ?',
+  duel: '⚔️ Qui entre en duel ?',
 }
 
 const PHASE_LABELS: Record<Phase, string> = {
@@ -142,6 +146,14 @@ export function renderCardChoice(player: Player, kind: CardChoiceKind): BaseMess
 export function renderPlayerChoice(kind: PlayerChoiceKind, targets: { id: string, name: string }[]): BaseMessageOptions {
   const buttons = targets.map(target => button(PLAYER_CHOICE_ID(kind, target.id), truncate(target.name, 40), ButtonStyle.Primary))
   return { content: PLAYER_CHOICE_QUESTIONS[kind], components: rows(buttons) }
+}
+
+// 2e étape du Duel : contre qui ?
+export function renderDuelChoice(first: { id: string, name: string }, targets: { id: string, name: string }[]): BaseMessageOptions {
+  const buttons = targets
+    .filter(target => target.id !== first.id)
+    .map(target => button(DUEL_CHOICE_ID(first.id, target.id), truncate(target.name, 40), ButtonStyle.Primary))
+  return { content: `⚔️ ${escapeMarkdown(first.name)} contre qui ?`, components: rows(buttons) }
 }
 
 // Réponse privée du bonus Recensement : on choisit la valeur
@@ -244,7 +256,7 @@ function addHistory(embed: EmbedBuilder, game: Game): void {
 }
 
 function addBonusUsage(embed: EmbedBuilder, game: Game): void {
-  const { swappedBy, revealed, spyglass, mastermind, highestRank, lowestRank, deadCards, compass, spied, redLantern, census } = game.bonusUsage
+  const { swappedBy, revealed, spyglass, mastermind, highestRank, lowestRank, deadCards, compass, spied, redLantern, census, duel } = game.bonusUsage
   const nameOf = (seatId: string) => escapeMarkdown(game.seats.find(seat => seat.id === seatId)?.name ?? '?')
 
   const lines: string[] = []
@@ -272,8 +284,16 @@ function addBonusUsage(embed: EmbedBuilder, game: Game): void {
   }
   if (census)
     lines.push(`🧮 Au ${PHASE_LABELS[census.phase].toLowerCase()}, cartes de valeur **${rankName(census.rank)}** encore dans la pioche : **${census.count}**`)
+  if (duel)
+    lines.push(`⚔️ Au ${PHASE_LABELS[duel.phase].toLowerCase()}, ${duelText(nameOf(duel.firstId), nameOf(duel.secondId), duel.comparison)}`)
   if (lines.length > 0)
     embed.addFields({ name: '😇 Bonus utilisés', value: lines.join('\n') })
+}
+
+function duelText(first: string, second: string, comparison: number): string {
+  if (comparison === 0)
+    return `**${first}** et **${second}** sont à égalité`
+  return comparison > 0 ? `**${first}** est devant **${second}**` : `**${second}** est devant **${first}**`
 }
 
 function showdownLine(entry: ShowdownEntry): string {
@@ -369,7 +389,7 @@ function tableButtons(game: Game): ActionRowBuilder<ButtonBuilder>[] {
 
 // Un bouton par bonus actif pas encore utilisé
 function bonusButtons(game: Game): ButtonBuilder[] {
-  const { swappedBy, revealed, spyglass, mastermind, highestRank, lowestRank, deadCards, compass, spied, redLantern, census } = game.bonusUsage
+  const { swappedBy, revealed, spyglass, mastermind, highestRank, lowestRank, deadCards, compass, spied, redLantern, census, duel } = game.bonusUsage
   const beforeFlop = game.board.length < 3
   const buttons: ButtonBuilder[] = []
   if (game.hasEffect('swap') && !swappedBy)
@@ -394,6 +414,8 @@ function bonusButtons(game: Game): ButtonBuilder[] {
     buttons.push(button(BUTTON_IDS.redLantern, '🏮 Lanterne rouge', ButtonStyle.Primary).setDisabled(beforeFlop))
   if (game.hasEffect('census') && !census)
     buttons.push(button(BUTTON_IDS.census, '🧮 Recensement', ButtonStyle.Primary))
+  if (game.hasEffect('duel') && !duel)
+    buttons.push(button(BUTTON_IDS.duel, '⚔️ Duel', ButtonStyle.Primary).setDisabled(beforeFlop))
   return buttons
 }
 

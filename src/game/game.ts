@@ -56,6 +56,7 @@ export interface BonusUsage {
   spied: { byId: string, targetId: string, card: Card } | null
   redLantern: { phase: BettingPhase, seatIds: string[] } | null // plusieurs si ex-aequo
   census: { phase: BettingPhase, rank: number, count: number } | null
+  duel: { phase: BettingPhase, firstId: string, secondId: string, comparison: number } | null // > 0 si le 1er est devant, 0 si égalité
 }
 
 // Malus "Rivière agitée" : la carte du tableau emportée par la river
@@ -65,7 +66,7 @@ export interface RiverSwap {
   replacement: Card
 }
 
-const NO_BONUS_USED: BonusUsage = { swappedBy: null, revealed: null, spyglass: null, mastermind: null, highestRank: null, lowestRank: null, deadCards: null, compass: null, spied: null, redLantern: null, census: null }
+const NO_BONUS_USED: BonusUsage = { swappedBy: null, revealed: null, spyglass: null, mastermind: null, highestRank: null, lowestRank: null, deadCards: null, compass: null, spied: null, redLantern: null, census: null, duel: null }
 
 export class Game {
   phase: Phase = 'lobby'
@@ -439,6 +440,30 @@ export class Game {
 
     const count = this.deck.filter(card => card.rank === rank).length
     this.bonusUsage.census = { phase: this.phase as BettingPhase, rank, count }
+  }
+
+  // Bonus "Duel" encore dispo ? Renvoie qui on peut opposer : tout le monde, fantôme compris
+  duelTargets(): Seat[] {
+    this.requireBonus('duel')
+    if (this.bonusUsage.duel)
+      throw new GameError('Le duel a déjà été utilisé cette manche.')
+    this.requireFlop('Le duel')
+
+    return this.seats
+  }
+
+  // Bonus "Duel" : lequel des deux est devant avec le tableau du moment ?
+  useDuel(playerId: string, firstId: string, secondId: string): void {
+    const targets = this.duelTargets()
+    this.requirePlayer(playerId)
+    const first = targets.find(seat => seat.id === firstId)
+    const second = targets.find(seat => seat.id === secondId)
+    if (!first || !second || first === second)
+      throw new GameError('Choisis deux joueurs différents.', true)
+
+    const handOf = (seat: Seat) => evaluateHand([...seat.hole, ...this.board])
+    const comparison = Math.sign(compareHands(handOf(first), handOf(second)))
+    this.bonusUsage.duel = { phase: this.phase as BettingPhase, firstId, secondId, comparison }
   }
 
   // Classement avec le tableau du moment et les positions du tour en cours (0 pour qui n'est pas placé)

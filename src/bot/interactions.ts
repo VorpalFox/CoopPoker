@@ -1,8 +1,8 @@
 import { type ButtonInteraction, type ChatInputCommandInteraction, type Interaction, type Message, MessageFlags, type RepliableInteraction, type SendableChannels } from 'discord.js'
 import { TIMER_SECONDS_PER_PLAYER } from '../game/effects.js'
-import { Game, GameError } from '../game/game.js'
+import { Game, GameError, type Seat } from '../game/game.js'
 import { COMMAND_NAME } from './commands.js'
-import { BUTTON_PREFIX, STEP_SEPARATOR, type CardChoiceKind, type PlayerChoiceKind, renderCardChoice, renderHandRanking, renderHoleCards, renderInfo, renderPlayerChoice, renderRankChoice, renderTable } from './render.js'
+import { BUTTON_PREFIX, STEP_SEPARATOR, type CardChoiceKind, type PlayerChoiceKind, renderCardChoice, renderHandRanking, renderHoleCards, renderDuelChoice, renderInfo, renderPlayerChoice, renderRankChoice, renderTable } from './render.js'
 
 // Une manche = 2 messages dans le salon : les infos fixes de la manche (règles, n° de manche, score, bonus / malus)
 // et la table juste en dessous, modifiée sur place à chaque clic. Chaque nouvelle manche reposte les 2.
@@ -88,7 +88,7 @@ async function handleCommand(interaction: ChatInputCommandInteraction): Promise<
 
 async function handleButton(interaction: ButtonInteraction): Promise<void> {
   const [buttonId, step] = interaction.customId.split(STEP_SEPARATOR)
-  const [, action, arg] = buttonId.split(':')
+  const [, action, arg, secondArg] = buttonId.split(':')
 
   // l'aide marche pour tout le monde, même sans partie en cours
   if (action === 'help') {
@@ -153,7 +153,8 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
       return
     case 'compass':
     case 'spy':
-      await handlePlayerChoice(interaction, session, action, arg)
+    case 'duel':
+      await handlePlayerChoice(interaction, session, action, arg, secondArg)
       return
     case 'census':
       await handleRankChoice(interaction, session, arg)
@@ -229,23 +230,47 @@ async function handleCardChoice(interaction: ButtonInteraction, session: TableSe
     await refreshCardViews(session)
 }
 
-// Bonus Boussole / Espion, en 2 clics : le bouton de la table ouvre un choix caché, puis on choisit le joueur
-async function handlePlayerChoice(interaction: ButtonInteraction, session: TableSession, kind: PlayerChoiceKind, targetId: string | undefined): Promise<void> {
+// Bonus Boussole / Espion / Duel : le bouton de la table ouvre un choix caché, puis on choisit le joueur
+// (le Duel en demande un 2e)
+async function handlePlayerChoice(interaction: ButtonInteraction, session: TableSession, kind: PlayerChoiceKind, targetId: string | undefined, secondId: string | undefined): Promise<void> {
   const { game } = session
   const player = game.requirePlayer(interaction.user.id)
 
   if (targetId === undefined) {
-    const targets = kind === 'compass' ? game.compassTargets() : game.spyTargets(player.id)
-    await interaction.reply({ ...renderPlayerChoice(kind, targets), flags: MessageFlags.Ephemeral })
+    await interaction.reply({ ...renderPlayerChoice(kind, playerChoiceTargets(game, kind, player.id)), flags: MessageFlags.Ephemeral })
+    return
+  }
+
+  if (kind === 'duel' && secondId === undefined) {
+    const targets = game.duelTargets()
+    const first = targets.find(seat => seat.id === targetId)
+    if (!first)
+      throw new GameError('Ce joueur n\'est plus à la table.')
+    await interaction.update(renderDuelChoice(first, targets))
     return
   }
 
   await useFromChoice(interaction, session, () => {
-    if (kind === 'compass')
-      game.useCompass(player.id, targetId)
-    else
-      game.useSpy(player.id, targetId)
+    switch (kind) {
+      case 'compass':
+        return game.useCompass(player.id, targetId)
+      case 'spy':
+        return game.useSpy(player.id, targetId)
+      case 'duel':
+        return game.useDuel(player.id, targetId, secondId!)
+    }
   })
+}
+
+function playerChoiceTargets(game: Game, kind: PlayerChoiceKind, playerId: string): Seat[] {
+  switch (kind) {
+    case 'compass':
+      return game.compassTargets()
+    case 'spy':
+      return game.spyTargets(playerId)
+    case 'duel':
+      return game.duelTargets()
+  }
 }
 
 // Bonus Recensement, en 2 clics : le bouton de la table ouvre un choix caché, puis on choisit la valeur
