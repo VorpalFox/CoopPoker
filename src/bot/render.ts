@@ -77,6 +77,7 @@ const HAND_RANKING = [
 
 const COLORS = { lobby: 0x5865f2, betting: 0x2b8a3e, info: 0x868e96, win: 0xf59f00, loss: 0xe03131 }
 const BUTTONS_PER_ROW = 5
+const MAX_ROWS = 5 // limite de Discord par message
 const BOARD_SLOTS = 5
 const CARD_WIDTH = 4 // intérieur d'une carte, assez pour " 10 "
 const ANSI_RED = '\u001b[31m'
@@ -341,8 +342,11 @@ function tableButtons(game: Game): ActionRowBuilder<ButtonBuilder>[] {
         actions.push(button(BUTTON_IDS.lock, '🔒 Bloquer ma position', ButtonStyle.Secondary).setDisabled(game.allLocked))
       actions.push(button(BUTTON_IDS.next, game.phase === 'river' ? 'Révéler ▶' : 'Tour suivant ▶', ButtonStyle.Success).setDisabled(!game.allPositioned))
 
+      const positions = positionButtons(game)
       const bonuses = bonusButtons(game)
-      return [...positionRows(game), row(...actions), ...(bonuses.length > 0 ? [row(...bonuses)] : [])]
+      const layout = [...rows(positions), row(...actions), ...rows(bonuses)]
+      // trop de lignes pour Discord (beaucoup de joueurs et de bonus en chaos) : on tasse tous les boutons
+      return layout.length <= MAX_ROWS ? layout : rows([...positions, ...actions, ...bonuses])
     }
   }
 }
@@ -375,8 +379,8 @@ function bonusButtons(game: Game): ButtonBuilder[] {
 
 // Boutons 1..n : bleus si libres, verts si pris, gris désactivés si bloqués (même texte, seuls la couleur et le clic changent)
 // (Discord n'a pas de bouton noir, le gris désactivé est le plus sombre dispo)
-function positionRows(game: Game): ActionRowBuilder<ButtonBuilder>[] {
-  const buttons = game.players.map((_, i) => {
+function positionButtons(game: Game): ButtonBuilder[] {
+  return game.players.map((_, i) => {
     const position = i + 1
     const id = POSITION_BUTTON_ID(position)
     const holder = game.players.find(player => player.position === position)
@@ -387,7 +391,6 @@ function positionRows(game: Game): ActionRowBuilder<ButtonBuilder>[] {
       return button(id, label, ButtonStyle.Secondary).setDisabled(true)
     return button(id, label, ButtonStyle.Success)
   })
-  return rows(buttons)
 }
 
 function chaosButton(game: Game): ButtonBuilder {
