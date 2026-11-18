@@ -221,9 +221,10 @@ export class Game {
     return holder
   }
 
-  // Malus "Tête verrouillée" : la position 1 se bloque d'office
+  // Malus "Tête / Queue verrouillée" : la 1re / la dernière position se bloque d'office
   private isLockedEnd(position: number): boolean {
-    return position === 1 && this.hasEffect('lockedTop')
+    return (position === 1 && this.hasEffect('lockedTop'))
+      || (position === this.positionCount && this.hasEffect('lockedBottom'))
   }
 
   // Retourne son jeton : sa position est bloquée jusqu'au tour suivant, pas de retour en arrière

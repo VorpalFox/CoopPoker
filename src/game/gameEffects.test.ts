@@ -119,6 +119,24 @@ describe('Game avec bonus / malus', () => {
     expect(game.findPlayer('bob')?.locked).toBe(false)
   })
 
+  it('takePosition_MalusQueueVerrouillee_BloqueSurLaDernierePosition', () => {
+    startWith('lockedBottom')
+    game.takePosition('alice', 2)
+    game.takePosition('bob', 1)
+
+    expect(game.findPlayer('alice')?.locked).toBe(true)
+    expect(game.findPlayer('bob')?.locked).toBe(false)
+  })
+
+  it('takePosition_MalusQueueVerrouilleeAvecFantome_CEstLaPositionNPlusUn', () => {
+    startWith('lockedBottom', 'ghost')
+    game.takePosition('alice', 2)
+    game.takePosition('bob', 3)
+
+    expect(game.findPlayer('alice')?.locked).toBe(false)
+    expect(game.findPlayer('bob')?.locked).toBe(true)
+  })
+
   it('start_MalusPasDePreflop_CommenceAuFlop', () => {
     startWith('noPreflop')
 
