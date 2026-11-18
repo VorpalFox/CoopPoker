@@ -29,9 +29,9 @@ describe('nextEffects', () => {
   })
 
   it('nextEffects_ChaosVictoireAvecBonus_RetireUnBonusEtAjouteUnMalus', () => {
-    const effects = nextEffects(['spyglass', 'check'], true, true, first)
+    const effects = nextEffects(['spyglass', 'mastermind'], true, true, first)
 
-    expect(effects).toEqual(['check', 'noLock'])
+    expect(effects).toEqual(['mastermind', 'noLock'])
   })
 
   it('nextEffects_ChaosTousLesMalusDejaActifs_NAjouteRien', () => {

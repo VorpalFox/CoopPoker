@@ -174,22 +174,40 @@ describe('Game avec bonus / malus', () => {
     expect(game.bonusUsage.spyglass).toEqual({ phase: 'flop', category: HandCategory.ThreeOfAKind })
   })
 
-  it('useCheck_ClassementBon_DitQueCaPasse', () => {
-    startWith('check')
+  it('useMastermind_ClassementBon_ToutLeMondeBienPlace', () => {
+    startWith('mastermind')
     playRound(1, 2)
     placeAll(1, 2)
 
-    game.useCheck('alice')
+    game.useMastermind('alice')
 
-    expect(game.bonusUsage.check).toEqual({ phase: 'flop', success: true })
+    expect(game.bonusUsage.mastermind).toEqual({ phase: 'flop', correctCount: 2 })
+    expect(() => game.useMastermind('bob')).toThrow(GameError)
   })
 
-  it('useCheck_PasToutLeMondePlace_Refuse', () => {
-    startWith('check')
+  it('useMastermind_ClassementInverse_PersonneBienPlace', () => {
+    startWith('mastermind')
+    playRound(1, 2)
+    placeAll(2, 1)
+
+    game.useMastermind('alice')
+
+    expect(game.bonusUsage.mastermind?.correctCount).toBe(0)
+  })
+
+  it('useMastermind_AvantLeFlop_Refuse', () => {
+    startWith('mastermind')
+    placeAll(1, 2)
+
+    expect(() => game.useMastermind('alice')).toThrow(GameError)
+  })
+
+  it('useMastermind_PasToutLeMondePlace_Refuse', () => {
+    startWith('mastermind')
     playRound(1, 2)
     game.takePosition('alice', 1)
 
-    expect(() => game.useCheck('alice')).toThrow(GameError)
+    expect(() => game.useMastermind('alice')).toThrow(GameError)
   })
 
   it('useMountain_BonusMontagne_AnnonceLaPlusHauteCarteEnMain', () => {

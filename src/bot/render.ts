@@ -20,7 +20,7 @@ export const BUTTON_IDS = {
   swap: `${BUTTON_PREFIX}:swap`,
   reveal: `${BUTTON_PREFIX}:reveal`,
   spyglass: `${BUTTON_PREFIX}:spyglass`,
-  check: `${BUTTON_PREFIX}:check`,
+  mastermind: `${BUTTON_PREFIX}:mastermind`,
   mountain: `${BUTTON_PREFIX}:mountain`,
   bilge: `${BUTTON_PREFIX}:bilge`,
   deadCards: `${BUTTON_PREFIX}:deadCards`,
@@ -217,7 +217,7 @@ function addHistory(embed: EmbedBuilder, game: Game): void {
 }
 
 function addBonusUsage(embed: EmbedBuilder, game: Game): void {
-  const { swappedBy, revealed, spyglass, check, highestRank, lowestRank, deadCards } = game.bonusUsage
+  const { swappedBy, revealed, spyglass, mastermind, highestRank, lowestRank, deadCards } = game.bonusUsage
   const nameOf = (playerId: string) => escapeMarkdown(game.findPlayer(playerId)?.name ?? '?')
 
   const lines: string[] = []
@@ -227,8 +227,8 @@ function addBonusUsage(embed: EmbedBuilder, game: Game): void {
     lines.push(`👁️ ${nameOf(revealed.playerId)} montre **${formatCard(revealed.card)}**`)
   if (spyglass)
     lines.push(`🔭 Au ${PHASE_LABELS[spyglass.phase].toLowerCase()}, la plus haute combinaison est : **${HAND_NAMES[spyglass.category]}**`)
-  if (check)
-    lines.push(`✔️ Au ${PHASE_LABELS[check.phase].toLowerCase()}, le classement vérifié ${check.success ? 'était **bon** ✅' : 'était **faux** ❌'}`)
+  if (mastermind)
+    lines.push(`🎯 Au ${PHASE_LABELS[mastermind.phase].toLowerCase()}, **${mastermind.correctCount}** joueur${mastermind.correctCount > 1 ? 's' : ''} sur ${game.players.length} bien placé${mastermind.correctCount > 1 ? 's' : ''}`)
   if (highestRank)
     lines.push(`⛰️ La plus haute carte en main : **${rankName(highestRank)}**`)
   if (lowestRank)
@@ -320,7 +320,7 @@ function tableButtons(game: Game): ActionRowBuilder<ButtonBuilder>[] {
 
 // Un bouton par bonus actif pas encore utilisé
 function bonusButtons(game: Game): ButtonBuilder[] {
-  const { swappedBy, revealed, spyglass, check, highestRank, lowestRank, deadCards } = game.bonusUsage
+  const { swappedBy, revealed, spyglass, mastermind, highestRank, lowestRank, deadCards } = game.bonusUsage
   const beforeFlop = game.board.length < 3
   const buttons: ButtonBuilder[] = []
   if (game.hasEffect('swap') && !swappedBy)
@@ -329,8 +329,8 @@ function bonusButtons(game: Game): ButtonBuilder[] {
     buttons.push(button(BUTTON_IDS.reveal, '👁️ Montrer une carte', ButtonStyle.Primary))
   if (game.hasEffect('spyglass') && !spyglass)
     buttons.push(button(BUTTON_IDS.spyglass, '🔭 Longue-vue', ButtonStyle.Primary))
-  if (game.hasEffect('check') && !check)
-    buttons.push(button(BUTTON_IDS.check, '✔️ Vérifier le classement', ButtonStyle.Primary).setDisabled(beforeFlop || !game.allPositioned))
+  if (game.hasEffect('mastermind') && !mastermind)
+    buttons.push(button(BUTTON_IDS.mastermind, '🎯 Mastermind', ButtonStyle.Primary).setDisabled(beforeFlop || !game.allPositioned))
   if (game.hasEffect('mountain') && !highestRank)
     buttons.push(button(BUTTON_IDS.mountain, '⛰️ Plus haute carte', ButtonStyle.Primary))
   if (game.hasEffect('bilge') && !lowestRank)

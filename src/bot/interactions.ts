@@ -155,8 +155,8 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
       game.useSpyglass(userId)
       await updateTable(interaction, session)
       return
-    case 'check':
-      game.useCheck(userId)
+    case 'mastermind':
+      game.useMastermind(userId)
       await updateTable(interaction, session)
       return
     case 'mountain':

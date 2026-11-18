@@ -42,13 +42,13 @@ export interface BonusUsage {
   swappedBy: string | null
   revealed: { playerId: string, card: Card } | null
   spyglass: { phase: BettingPhase, category: HandCategory } | null
-  check: { phase: BettingPhase, success: boolean } | null
+  mastermind: { phase: BettingPhase, correctCount: number } | null
   highestRank: number | null
   lowestRank: number | null
   deadCards: Card[] | null
 }
 
-const NO_BONUS_USED: BonusUsage = { swappedBy: null, revealed: null, spyglass: null, check: null, highestRank: null, lowestRank: null, deadCards: null }
+const NO_BONUS_USED: BonusUsage = { swappedBy: null, revealed: null, spyglass: null, mastermind: null, highestRank: null, lowestRank: null, deadCards: null }
 
 export class Game {
   phase: Phase = 'lobby'
@@ -271,18 +271,18 @@ export class Game {
     this.bonusUsage.spyglass = { phase: this.phase as BettingPhase, category: best }
   }
 
-  // Bonus "Vérification" : le classement actuel serait-il gagnant avec le tableau du moment ?
-  useCheck(playerId: string): void {
-    this.requireBonus('check')
+  // Bonus "Mastermind" : combien de joueurs sont bien placés avec le tableau du moment, sans dire lesquels
+  useMastermind(playerId: string): void {
+    this.requireBonus('mastermind')
     this.requirePlayer(playerId)
-    if (this.bonusUsage.check)
-      throw new GameError('La vérification a déjà été utilisée cette manche.')
-    this.requireFlop('La vérification')
+    if (this.bonusUsage.mastermind)
+      throw new GameError('Le mastermind a déjà été utilisé cette manche.')
+    this.requireFlop('Le mastermind')
     if (!this.allPositioned)
-      throw new GameError('Tout le monde doit avoir une position pour vérifier le classement.')
+      throw new GameError('Tout le monde doit avoir une position pour utiliser le mastermind.')
 
-    const current = this.players.map(player => ({ ...player, position: player.position! }))
-    this.bonusUsage.check = { phase: this.phase as BettingPhase, success: evaluateShowdown(current, this.board).success }
+    const correctCount = this.currentShowdown().entries.filter(entry => entry.correct).length
+    this.bonusUsage.mastermind = { phase: this.phase as BettingPhase, correctCount }
   }
 
   // Bonus "Montagne" : la plus haute carte en main, sans dire qui l'a
@@ -313,6 +313,12 @@ export class Game {
       throw new GameError('Les cartes mortes ont déjà été brûlées cette manche.')
 
     this.bonusUsage.deadCards = this.draw(DEAD_CARD_COUNT)
+  }
+
+  // Classement avec le tableau du moment et les positions du tour en cours (0 pour qui n'est pas placé)
+  private currentShowdown(): ShowdownResult {
+    const current = this.players.map(player => ({ ...player, position: player.position ?? 0 }))
+    return evaluateShowdown(current, this.board)
   }
 
   // Les mains de la table
