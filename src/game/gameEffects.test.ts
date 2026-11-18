@@ -101,6 +101,24 @@ describe('Game avec bonus / malus', () => {
     expect(game.findPlayer('alice')?.locked).toBe(false)
   })
 
+  it('takePosition_MalusTeteVerrouillee_BloqueSurLaPosition1', () => {
+    startWith('lockedTop')
+    game.takePosition('alice', 2)
+    game.takePosition('bob', 1)
+
+    expect(game.findPlayer('bob')?.locked).toBe(true)
+    expect(game.findPlayer('alice')?.locked).toBe(false)
+  })
+
+  it('takePosition_MalusTeteVerrouilleeEtPremierVerrouille_LePremierEstConsomme', () => {
+    startWith('lockedTop', 'firstLocked')
+    game.takePosition('alice', 1)
+    game.takePosition('bob', 2)
+
+    expect(game.findPlayer('alice')?.locked).toBe(true)
+    expect(game.findPlayer('bob')?.locked).toBe(false)
+  })
+
   it('start_MalusPasDePreflop_CommenceAuFlop', () => {
     startWith('noPreflop')
 

@@ -216,9 +216,14 @@ export class Game {
     if (holder)
       holder.position = null
     player.position = position
-    if (isFirstOfRound && this.hasEffect('firstLocked'))
+    if ((isFirstOfRound && this.hasEffect('firstLocked')) || this.isLockedEnd(position))
       player.locked = true
     return holder
+  }
+
+  // Malus "Tête verrouillée" : la position 1 se bloque d'office
+  private isLockedEnd(position: number): boolean {
+    return position === 1 && this.hasEffect('lockedTop')
   }
 
   // Retourne son jeton : sa position est bloquée jusqu'au tour suivant, pas de retour en arrière

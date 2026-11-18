@@ -44,6 +44,7 @@ Le même effet n'est jamais actif deux fois. Si tous ceux d'une sorte le sont d�
 | ⏭️ | Pas de turn | Pas de classement à la turn : la turn et la river sortent ensemble, puis on fait le dernier classement. Avec ⏭️ Pas de pré-flop, il ne reste que le flop et la river. |
 | 🌊 | Rivière agitée | À la river, juste avant le dernier classement, une des 4 premières cartes du tableau est tirée au hasard et remplacée par une nouvelle carte du paquet. Le bot annonce laquelle. Avec 🂠 Carte cachée, la carte cachée peut être tirée. |
 | 👻 | Joueur fantôme | Un 👻 Fantôme reçoit 2 cartes cachées. Il y a n+1 positions pour n joueurs : celle qui reste vide est celle du Fantôme, et pour gagner elle doit aussi être à sa vraie place. Ses cartes sont montrées au résultat. Il compte dans les annonces des bonus (⛰️ ⚓ 🔭 🎯 🧭) et on peut l'espionner. |
+| ⬆️ | Tête verrouillée | Qui prend la position 1 y est bloqué jusqu'au tour suivant, comme avec 🔒. Si c'est aussi le 1er jeton du tour avec 🥇 Premier verrouillé, ce dernier est consommé quand même. |
 | 🥇 | Premier verrouillé | À chaque tour, le premier qui prend une position est bloqué dessus jusqu'au tour suivant, comme avec 🔒. Marche aussi avec 🔓 Pas de blocage, qui n'interdit que les blocages volontaires. |
 
 ### 😇 Bonus
