@@ -425,6 +425,29 @@ describe('Game avec bonus / malus', () => {
     expect(() => game.useSpy('alice', 'alice')).toThrow(GameError)
   })
 
+  it('useRedLantern_AuFlop_DonneLaPireMain', () => {
+    startWith('redLantern')
+    expect(() => game.useRedLantern('alice')).toThrow(GameError)
+    playRound(1, 2)
+
+    game.useRedLantern('alice')
+
+    expect(game.bonusUsage.redLantern).toEqual({ phase: 'flop', seatIds: ['bob'] })
+    expect(() => game.useRedLantern('bob')).toThrow(GameError)
+  })
+
+  it('useRedLantern_ExAequo_LesDonneTous', () => {
+    // As-Roi des deux côtés, couleurs différentes : égalité parfaite
+    game = new Game(() => parseCards('Ah Kh Ad Kd 9c Js 4c 2d 3h'), () => 0)
+    game.join('alice', 'Alice')
+    game.join('bob', 'Bob')
+    startWith('redLantern', 'noPreflop')
+
+    game.useRedLantern('alice')
+
+    expect(game.bonusUsage.redLantern?.seatIds).toEqual(['alice', 'bob'])
+  })
+
   it('finishRound_SecondeChanceInversionVoisins_Gagne', () => {
     startWith('secondChance')
     for (let i = 0; i < 4; i++) {

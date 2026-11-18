@@ -23,6 +23,7 @@ export const BUTTON_IDS = {
   mastermind: `${BUTTON_PREFIX}:mastermind`,
   compass: `${BUTTON_PREFIX}:compass`,
   spy: `${BUTTON_PREFIX}:spy`,
+  redLantern: `${BUTTON_PREFIX}:redLantern`,
   mountain: `${BUTTON_PREFIX}:mountain`,
   bilge: `${BUTTON_PREFIX}:bilge`,
   deadCards: `${BUTTON_PREFIX}:deadCards`,
@@ -234,7 +235,7 @@ function addHistory(embed: EmbedBuilder, game: Game): void {
 }
 
 function addBonusUsage(embed: EmbedBuilder, game: Game): void {
-  const { swappedBy, revealed, spyglass, mastermind, highestRank, lowestRank, deadCards, compass, spied } = game.bonusUsage
+  const { swappedBy, revealed, spyglass, mastermind, highestRank, lowestRank, deadCards, compass, spied, redLantern } = game.bonusUsage
   const nameOf = (seatId: string) => escapeMarkdown(game.seats.find(seat => seat.id === seatId)?.name ?? '?')
 
   const lines: string[] = []
@@ -256,6 +257,10 @@ function addBonusUsage(embed: EmbedBuilder, game: Game): void {
     lines.push(`🧭 Au ${PHASE_LABELS[compass.phase].toLowerCase()} : ${compass.correct ? '✅' : '❌'} ${nameOf(compass.playerId)} (position ${compass.position}) est **${compass.correct ? 'bien' : 'mal'} placé**`)
   if (spied)
     lines.push(`🕵️ ${nameOf(spied.byId)} espionne ${nameOf(spied.targetId)} : **${formatCard(spied.card)}**`)
+  if (redLantern) {
+    const tie = redLantern.seatIds.length > 1 ? ' (ex-aequo)' : ''
+    lines.push(`🏮 Au ${PHASE_LABELS[redLantern.phase].toLowerCase()}, la pire main : **${redLantern.seatIds.map(nameOf).join(' et ')}**${tie}`)
+  }
   if (lines.length > 0)
     embed.addFields({ name: '😇 Bonus utilisés', value: lines.join('\n') })
 }
@@ -353,7 +358,7 @@ function tableButtons(game: Game): ActionRowBuilder<ButtonBuilder>[] {
 
 // Un bouton par bonus actif pas encore utilisé
 function bonusButtons(game: Game): ButtonBuilder[] {
-  const { swappedBy, revealed, spyglass, mastermind, highestRank, lowestRank, deadCards, compass, spied } = game.bonusUsage
+  const { swappedBy, revealed, spyglass, mastermind, highestRank, lowestRank, deadCards, compass, spied, redLantern } = game.bonusUsage
   const beforeFlop = game.board.length < 3
   const buttons: ButtonBuilder[] = []
   if (game.hasEffect('swap') && !swappedBy)
@@ -374,6 +379,8 @@ function bonusButtons(game: Game): ButtonBuilder[] {
     buttons.push(button(BUTTON_IDS.compass, '🧭 Boussole', ButtonStyle.Primary).setDisabled(beforeFlop || game.players.every(player => player.position === null)))
   if (game.hasEffect('spy') && !spied)
     buttons.push(button(BUTTON_IDS.spy, '🕵️ Espionner', ButtonStyle.Primary))
+  if (game.hasEffect('redLantern') && !redLantern)
+    buttons.push(button(BUTTON_IDS.redLantern, '🏮 Lanterne rouge', ButtonStyle.Primary).setDisabled(beforeFlop))
   return buttons
 }
 

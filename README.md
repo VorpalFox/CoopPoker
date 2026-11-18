@@ -58,6 +58,7 @@ Le même effet n'est jamais actif deux fois. Si tous ceux d'une sorte le sont d�
 | 🎯 | Mastermind | Une fois, à partir du flop, quand tout le monde est placé, le bot dit combien de joueurs sont bien placés avec le tableau du moment, sans dire lesquels. Les ex-aequo sont bien placés n'importe où dans leur plage de places. |
 | 🧭 | Boussole | Une fois, à partir du flop, on choisit un joueur placé et le bot dit à la table s'il est bien ou mal placé avec le tableau du moment (même règle d'égalité que 🎯 Mastermind). |
 | 🕵️ | Espion | Le premier qui clique choisit un autre joueur : une de ses cartes, tirée au hasard, est montrée à toute la table. |
+| 🏮 | Lanterne rouge | Une fois, à partir du flop, le bot dit qui a la pire main avec le tableau du moment (tous les ex-aequo s'il y en a, 👻 Fantôme compris). |
 | 🍀 | Seconde chance | À la fin, une seule inversion entre deux joueurs voisins est pardonnée. |
 | ⛰️ | Montagne | Une fois, le bot annonce la plus haute carte en main, valeur seulement, sans dire qui l'a. |
 | ⚓ | Fond de cale | Une fois, le bot annonce la plus basse carte en main, valeur seulement, sans dire qui l'a. |

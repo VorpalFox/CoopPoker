@@ -1,6 +1,6 @@
 import { type Card, createDeck, shuffle } from './cards.js'
 import { type BonusId, DEAD_CARD_COUNT, type EffectId, nextEffects } from './effects.js'
-import { type HandCategory, handCategory } from './handEvaluator.js'
+import { compareHands, evaluateHand, type HandCategory, handCategory } from './handEvaluator.js'
 import { evaluateShowdown, isSingleAdjacentSwap, type ShowdownPlayer, type ShowdownResult } from './showdown.js'
 
 export const MIN_PLAYERS = 2
@@ -54,6 +54,7 @@ export interface BonusUsage {
   deadCards: Card[] | null
   compass: { phase: BettingPhase, playerId: string, position: number, correct: boolean } | null
   spied: { byId: string, targetId: string, card: Card } | null
+  redLantern: { phase: BettingPhase, seatIds: string[] } | null // plusieurs si ex-aequo
 }
 
 // Malus "Rivière agitée" : la carte du tableau emportée par la river
@@ -63,7 +64,7 @@ export interface RiverSwap {
   replacement: Card
 }
 
-const NO_BONUS_USED: BonusUsage = { swappedBy: null, revealed: null, spyglass: null, mastermind: null, highestRank: null, lowestRank: null, deadCards: null, compass: null, spied: null }
+const NO_BONUS_USED: BonusUsage = { swappedBy: null, revealed: null, spyglass: null, mastermind: null, highestRank: null, lowestRank: null, deadCards: null, compass: null, spied: null, redLantern: null }
 
 export class Game {
   phase: Phase = 'lobby'
@@ -405,6 +406,20 @@ export class Game {
 
     const card = target.hole[Math.floor(this.random() * target.hole.length)]
     this.bonusUsage.spied = { byId: playerId, targetId, card }
+  }
+
+  // Bonus "Lanterne rouge" : qui a la pire main avec le tableau du moment (fantôme compris)
+  useRedLantern(playerId: string): void {
+    this.requireBonus('redLantern')
+    this.requirePlayer(playerId)
+    if (this.bonusUsage.redLantern)
+      throw new GameError('La lanterne rouge a déjà été utilisée cette manche.')
+    this.requireFlop('La lanterne rouge')
+
+    const hands = this.seats.map(seat => ({ seat, hand: evaluateHand([...seat.hole, ...this.board]) }))
+    const worst = hands.reduce((a, b) => (compareHands(a.hand, b.hand) <= 0 ? a : b)).hand
+    const seatIds = hands.filter(({ hand }) => compareHands(hand, worst) === 0).map(({ seat }) => seat.id)
+    this.bonusUsage.redLantern = { phase: this.phase as BettingPhase, seatIds }
   }
 
   // Classement avec le tableau du moment et les positions du tour en cours (0 pour qui n'est pas placé)
