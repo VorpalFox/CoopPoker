@@ -45,7 +45,7 @@ export type Seat = Pick<Player, 'id' | 'name' | 'hole'>
 
 // Ce que les bonus ont donné pendant la manche (chacun ne sert qu'une fois)
 export interface BonusUsage {
-  swappedBy: string | null
+  swapped: { playerId: string, discarded: Card } | null
   revealed: { playerId: string, card: Card } | null
   spyglass: { phase: BettingPhase, category: HandCategory } | null
   mastermind: { phase: BettingPhase, correctCount: number } | null
@@ -66,7 +66,7 @@ export interface RiverSwap {
   replacement: Card
 }
 
-const NO_BONUS_USED: BonusUsage = { swappedBy: null, revealed: null, spyglass: null, mastermind: null, highestRank: null, lowestRank: null, deadCards: null, compass: null, spied: null, redLantern: null, census: null, duel: null }
+const NO_BONUS_USED: BonusUsage = { swapped: null, revealed: null, spyglass: null, mastermind: null, highestRank: null, lowestRank: null, deadCards: null, compass: null, spied: null, redLantern: null, census: null, duel: null }
 
 export class Game {
   phase: Phase = 'lobby'
@@ -293,18 +293,19 @@ export class Game {
   // Bonus Échange / Révélation encore dispo ? (le premier qui clique le prend)
   requireCardBonus(kind: 'swap' | 'reveal'): void {
     this.requireBonus(kind)
-    if (kind === 'swap' ? this.bonusUsage.swappedBy : this.bonusUsage.revealed)
+    if (kind === 'swap' ? this.bonusUsage.swapped : this.bonusUsage.revealed)
       throw new GameError(kind === 'swap' ? 'L\'échange a déjà été utilisé cette manche.' : 'La révélation a déjà été utilisée cette manche.')
   }
 
-  // Bonus "Échange" : remplace une de ses cartes par une neuve du paquet
+  // Bonus "Échange" : remplace une de ses cartes par une neuve du paquet, l'ancienne est montrée à la table
   swapCard(playerId: string, cardIndex: number): void {
     this.requireCardBonus('swap')
     const player = this.requirePlayer(playerId)
     this.requireCardIndex(cardIndex)
 
+    const discarded = player.hole[cardIndex]
     player.hole[cardIndex] = this.draw(1)[0]
-    this.bonusUsage.swappedBy = player.id
+    this.bonusUsage.swapped = { playerId: player.id, discarded }
   }
 
   // Bonus "Révélation" : montre une de ses cartes à toute la table

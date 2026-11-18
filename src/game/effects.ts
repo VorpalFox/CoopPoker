@@ -30,7 +30,7 @@ export const EFFECTS: Record<EffectId, EffectInfo> = {
   lockedTop: { kind: 'malus', emoji: '⬆️', name: 'Tête verrouillée', description: 'qui prend la position 1 y est bloqué jusqu\'au tour suivant.' },
   lockedBottom: { kind: 'malus', emoji: '⬇️', name: 'Queue verrouillée', description: 'qui prend la dernière position y est bloqué jusqu\'au tour suivant.' },
   oneEyed: { kind: 'malus', emoji: '☝️', name: 'Main de borgne', description: 'un joueur tiré au hasard ne voit qu\'une de ses 2 cartes de toute la manche, jusqu\'au résultat.' },
-  swap: { kind: 'bonus', emoji: '🔄', name: 'Échange', description: 'le premier qui clique remplace une de ses cartes.' },
+  swap: { kind: 'bonus', emoji: '🔄', name: 'Échange', description: 'le premier qui clique remplace une de ses cartes, l\'ancienne est montrée à la table.' },
   reveal: { kind: 'bonus', emoji: '👁️', name: 'Révélation', description: 'le premier qui clique montre une de ses cartes à la table.' },
   spyglass: { kind: 'bonus', emoji: '🔭', name: 'Longue-vue', description: 'une fois, le bot annonce la plus haute combinaison parmi toutes les mains, avec le tableau du moment.' },
   mastermind: { kind: 'bonus', emoji: '🎯', name: 'Mastermind', description: 'une fois, à partir du flop, quand tout le monde est placé, le bot dit combien de joueurs sont bien placés avec le tableau du moment, sans dire lesquels.' },

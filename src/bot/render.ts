@@ -260,12 +260,12 @@ function addHistory(embed: EmbedBuilder, game: Game): void {
 }
 
 function addBonusUsage(embed: EmbedBuilder, game: Game): void {
-  const { swappedBy, revealed, spyglass, mastermind, highestRank, lowestRank, deadCards, compass, spied, redLantern, census, duel } = game.bonusUsage
+  const { swapped, revealed, spyglass, mastermind, highestRank, lowestRank, deadCards, compass, spied, redLantern, census, duel } = game.bonusUsage
   const nameOf = (seatId: string) => escapeMarkdown(game.seats.find(seat => seat.id === seatId)?.name ?? '?')
 
   const lines: string[] = []
-  if (swappedBy)
-    lines.push(`🔄 ${nameOf(swappedBy)} a échangé une carte`)
+  if (swapped)
+    lines.push(`🔄 ${nameOf(swapped.playerId)} a échangé une carte et défausse **${formatCard(swapped.discarded)}**`)
   if (revealed)
     lines.push(`👁️ ${nameOf(revealed.playerId)} montre **${formatCard(revealed.card)}**`)
   if (spyglass)
@@ -400,10 +400,10 @@ function tableButtons(game: Game): ActionRowBuilder<ButtonBuilder>[] {
 
 // Un bouton par bonus actif pas encore utilisé
 function bonusButtons(game: Game): ButtonBuilder[] {
-  const { swappedBy, revealed, spyglass, mastermind, highestRank, lowestRank, deadCards, compass, spied, redLantern, census, duel } = game.bonusUsage
+  const { swapped, revealed, spyglass, mastermind, highestRank, lowestRank, deadCards, compass, spied, redLantern, census, duel } = game.bonusUsage
   const beforeFlop = game.board.length < 3
   const buttons: ButtonBuilder[] = []
-  if (game.hasEffect('swap') && !swappedBy)
+  if (game.hasEffect('swap') && !swapped)
     buttons.push(button(BUTTON_IDS.swap, '🔄 Échanger une carte', ButtonStyle.Primary))
   if (game.hasEffect('reveal') && !revealed)
     buttons.push(button(BUTTON_IDS.reveal, '👁️ Montrer une carte', ButtonStyle.Primary))

@@ -53,7 +53,7 @@ Le même effet n'est jamais actif deux fois. Si tous ceux d'une sorte le sont d�
 
 | | Bonus | Effet |
 |---|---|---|
-| 🔄 | Échange | Le premier qui clique remplace une de ses deux cartes par une carte du paquet. |
+| 🔄 | Échange | Le premier qui clique remplace une de ses deux cartes par une carte du paquet. L'ancienne carte est défaussée et montrée à toute la table. |
 | 👁️ | Révélation | Le premier qui clique montre une de ses cartes à toute la table. |
 | 🔭 | Longue-vue | Une fois, le bot annonce la plus haute combinaison parmi toutes les mains, avec le tableau du moment (au pré-flop : paire ou carte haute). |
 | 🎯 | Mastermind | Une fois, à partir du flop, quand tout le monde est placé, le bot dit combien de joueurs sont bien placés avec le tableau du moment, sans dire lesquels. Les ex-aequo sont bien placés n'importe où dans leur plage de places. |

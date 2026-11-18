@@ -288,6 +288,7 @@ describe('Game avec bonus / malus', () => {
     game.swapCard('bob', 0)
 
     expect(game.findPlayer('bob')?.hole).toEqual(parseCards('9h 2s'))
+    expect(game.bonusUsage.swapped).toEqual({ playerId: 'bob', discarded: parseCards('7c')[0] })
     expect(() => game.swapCard('alice', 0)).toThrow(GameError)
   })
 
