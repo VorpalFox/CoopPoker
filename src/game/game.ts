@@ -88,6 +88,7 @@ export class Game {
   bonusUsage: BonusUsage = { ...NO_BONUS_USED }
   riverSwap: RiverSwap | null = null
   reshuffle: Reshuffle | null = null
+  crown: { playerId: string, phase: Phase } | null = null // malus "Lourde est la couronne" (phase : le tour où il est couronné)
   ghostHole: Card[] | null = null // malus "Joueur fantôme"
   oneEyed: { playerId: string, cardIndex: number } | null = null // malus "Main de borgne"
   step = 0 // change à chaque nouvelle manche et à chaque tour : un clic fait sur une étape passée est ignoré
@@ -151,6 +152,26 @@ export class Game {
     return player
   }
 
+  // Un joueur qui agit lui-même : pas le roi
+  requireActor(id: string): Player {
+    const player = this.requirePlayer(id)
+    if (this.isKing(player.id))
+      throw new GameError('👑 Le roi ne fait plus rien lui-même : ses sujets s\'en chargent.', true)
+    return player
+  }
+
+  // Malus "Lourde est la couronne" : le roi ne fait plus rien lui-même, le temps de la manche
+  isKing(playerId: string): boolean {
+    return this.crown?.playerId === playerId && this.isBetting
+  }
+
+  requireKing(): Player {
+    const king = this.crown ? this.findPlayer(this.crown.playerId) : undefined
+    if (!king || !this.isBetting)
+      throw new GameError('Il n\'y a pas de roi en ce moment.')
+    return king
+  }
+
   join(id: string, name: string): void {
     if (!this.isBetweenRounds)
       throw new GameError('Une manche est en cours, attends la fin pour rejoindre.')
@@ -192,6 +213,7 @@ export class Game {
     this.bonusUsage = { ...NO_BONUS_USED }
     this.riverSwap = null
     this.reshuffle = null
+    this.crown = null
     for (const player of this.players) {
       player.hole = this.draw(2)
       player.position = null
@@ -209,11 +231,20 @@ export class Game {
 
   // Renvoie le joueur à qui on a piqué la position, s'il y en a un
   takePosition(playerId: string, position: number): Player | null {
+    return this.move(this.requireActor(playerId), position)
+  }
+
+  // Malus "Lourde est la couronne" : un sujet place le roi
+  placeKing(playerId: string, position: number): Player | null {
+    this.requireActor(playerId)
+    return this.move(this.requireKing(), position)
+  }
+
+  private move(player: Player, position: number): Player | null {
     if (!this.isBetting)
       throw new GameError('Pas de position à prendre en ce moment.')
     if (!Number.isInteger(position) || position < 1 || position > this.positionCount)
       throw new GameError('Position invalide.')
-    const player = this.requirePlayer(playerId)
     if (player.locked)
       throw new GameError('Ta position est bloquée jusqu\'au tour suivant.')
 
@@ -249,11 +280,11 @@ export class Game {
 
   // Retourne son jeton : sa position est bloquée jusqu'au tour suivant, pas de retour en arrière
   lock(playerId: string): void {
+    const player = this.requireActor(playerId)
     if (!this.isBetting)
       throw new GameError('Pas de position à bloquer en ce moment.')
     if (this.hasEffect('noLock'))
       throw new GameError('Malus « Pas de blocage » : impossible de bloquer cette manche.')
-    const player = this.requirePlayer(playerId)
     if (player.position === null)
       throw new GameError('Prends d\'abord une position avant de la bloquer.', true)
     if (player.locked)
@@ -280,6 +311,9 @@ export class Game {
       next = 'river'
     this.phase = next
     this.step++
+    // malus "Lourde est la couronne" : à la fin du premier tour joué, le mieux placé devient le roi
+    if (this.hasEffect('crown') && !this.crown)
+      this.crownKing()
     this.board.push(...this.draw(BOARD_SIZE[next] - this.board.length))
     if (phase === 'flop')
       this.shakeHand()
@@ -312,7 +346,7 @@ export class Game {
   // Bonus "Échange" : remplace une de ses cartes par une neuve du paquet, l'ancienne est montrée à la table
   swapCard(playerId: string, cardIndex: number): void {
     this.requireCardBonus('swap')
-    const player = this.requirePlayer(playerId)
+    const player = this.requireActor(playerId)
     this.requireCardIndex(cardIndex)
 
     const discarded = player.hole[cardIndex]
@@ -323,7 +357,7 @@ export class Game {
   // Bonus "Révélation" : montre une de ses cartes à toute la table
   revealCard(playerId: string, cardIndex: number): void {
     this.requireCardBonus('reveal')
-    const player = this.requirePlayer(playerId)
+    const player = this.requireActor(playerId)
     this.requireCardIndex(cardIndex)
 
     this.bonusUsage.revealed = { playerId: player.id, card: player.hole[cardIndex] }
@@ -332,7 +366,7 @@ export class Game {
   // Bonus "Longue-vue" : la plus haute combinaison parmi toutes les mains, avec le tableau du moment
   useSpyglass(playerId: string): void {
     this.requireBonus('spyglass')
-    this.requirePlayer(playerId)
+    this.requireActor(playerId)
     if (this.bonusUsage.spyglass)
       throw new GameError('La longue-vue a déjà été utilisée cette manche.')
 
@@ -343,7 +377,7 @@ export class Game {
   // Bonus "Mastermind" : combien de joueurs sont bien placés avec le tableau du moment, sans dire lesquels
   useMastermind(playerId: string): void {
     this.requireBonus('mastermind')
-    this.requirePlayer(playerId)
+    this.requireActor(playerId)
     if (this.bonusUsage.mastermind)
       throw new GameError('Le mastermind a déjà été utilisé cette manche.')
     this.requireFlop('Le mastermind')
@@ -358,7 +392,7 @@ export class Game {
   // Bonus "Montagne" : la plus haute carte en main, sans dire qui l'a
   useMountain(playerId: string): void {
     this.requireBonus('mountain')
-    this.requirePlayer(playerId)
+    this.requireActor(playerId)
     if (this.bonusUsage.highestRank)
       throw new GameError('La montagne a déjà été utilisée cette manche.')
 
@@ -368,7 +402,7 @@ export class Game {
   // Bonus "Fond de cale" : la plus basse carte en main, sans dire qui l'a
   useBilge(playerId: string): void {
     this.requireBonus('bilge')
-    this.requirePlayer(playerId)
+    this.requireActor(playerId)
     if (this.bonusUsage.lowestRank)
       throw new GameError('Le fond de cale a déjà été utilisé cette manche.')
 
@@ -378,7 +412,7 @@ export class Game {
   // Bonus "Cartes mortes" : des cartes brûlées et montrées, qui ne sortiront plus
   useDeadCards(playerId: string): void {
     this.requireBonus('deadCards')
-    this.requirePlayer(playerId)
+    this.requireActor(playerId)
     if (this.bonusUsage.deadCards)
       throw new GameError('Les cartes mortes ont déjà été brûlées cette manche.')
 
@@ -401,7 +435,7 @@ export class Game {
   // Bonus "Boussole" : ce joueur est-il bien placé avec le tableau du moment ?
   useCompass(playerId: string, targetId: string): void {
     this.compassTargets()
-    this.requirePlayer(playerId)
+    this.requireActor(playerId)
     const target = this.findPlayer(targetId)
     if (target?.position == null)
       throw new GameError(`${target?.name ?? 'Ce joueur'} n'est plus placé, choisis-en un autre.`, true)
@@ -415,7 +449,7 @@ export class Game {
     this.requireBonus('spy')
     if (this.bonusUsage.spied)
       throw new GameError('L\'espion a déjà été utilisé cette manche.')
-    this.requirePlayer(playerId)
+    this.requireActor(playerId)
 
     return this.seats.filter(seat => seat.id !== playerId)
   }
@@ -433,7 +467,7 @@ export class Game {
   // Bonus "Lanterne rouge" : qui a la pire main avec le tableau du moment (fantôme compris)
   useRedLantern(playerId: string): void {
     this.requireBonus('redLantern')
-    this.requirePlayer(playerId)
+    this.requireActor(playerId)
     if (this.bonusUsage.redLantern)
       throw new GameError('La lanterne rouge a déjà été utilisée cette manche.')
     this.requireFlop('La lanterne rouge')
@@ -454,7 +488,7 @@ export class Game {
   // Bonus "Recensement" : combien de cartes de cette valeur sont encore dans la pioche
   useCensus(playerId: string, rank: number): void {
     this.requireCensus()
-    this.requirePlayer(playerId)
+    this.requireActor(playerId)
     if (!Number.isInteger(rank) || rank < 2 || rank > 14)
       throw new GameError('Valeur invalide.')
 
@@ -475,7 +509,7 @@ export class Game {
   // Bonus "Duel" : lequel des deux est devant avec le tableau du moment ?
   useDuel(playerId: string, firstId: string, secondId: string): void {
     const targets = this.duelTargets()
-    this.requirePlayer(playerId)
+    this.requireActor(playerId)
     const first = targets.find(seat => seat.id === firstId)
     const second = targets.find(seat => seat.id === secondId)
     if (!first || !second || first === second)
@@ -514,6 +548,12 @@ export class Game {
   private drawOneEyed(): { playerId: string, cardIndex: number } {
     const player = this.players[Math.floor(this.random() * this.players.length)]
     return { playerId: player.id, cardIndex: Math.floor(this.random() * 2) }
+  }
+
+  // Le mieux placé plutôt que le 1er : avec le fantôme, le trou peut être en tête
+  private crownKing(): void {
+    const best = this.players.reduce((a, b) => (a.history.at(-1)!.position <= b.history.at(-1)!.position ? a : b))
+    this.crown = { playerId: best.id, phase: this.phase }
   }
 
   // Malus "Main haute / basse instable" : quand la turn tombe, s'il y a un habillé au tableau le 1er du flop

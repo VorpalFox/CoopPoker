@@ -1,7 +1,7 @@
 // Bonus / malus : une manche gagnée amène un malus pour la suivante, une manche perdue un bonus.
 // En mode chaos ils s'accumulent : une victoire retire le plus vieux bonus et ajoute un malus, et inversement.
 
-export type MalusId = 'noLock' | 'noPreflop' | 'hiddenHistory' | 'timer' | 'hiddenFlopCard' | 'noSteal' | 'firstLocked' | 'noTurn' | 'roughRiver' | 'ghost' | 'lockedTop' | 'lockedBottom' | 'oneEyed' | 'unstableHigh' | 'unstableLow'
+export type MalusId = 'noLock' | 'noPreflop' | 'hiddenHistory' | 'timer' | 'hiddenFlopCard' | 'noSteal' | 'firstLocked' | 'noTurn' | 'roughRiver' | 'ghost' | 'lockedTop' | 'lockedBottom' | 'oneEyed' | 'unstableHigh' | 'unstableLow' | 'crown'
 export type BonusId = 'swap' | 'reveal' | 'spyglass' | 'mastermind' | 'secondChance' | 'mountain' | 'bilge' | 'deadCards' | 'compass' | 'spy' | 'redLantern' | 'census' | 'duel'
 export type EffectId = MalusId | BonusId
 export type EffectKind = 'malus' | 'bonus'
@@ -32,6 +32,7 @@ export const EFFECTS: Record<EffectId, EffectInfo> = {
   oneEyed: { kind: 'malus', emoji: '☝️', name: 'Main de borgne', description: 'un joueur tiré au hasard ne voit qu\'une de ses 2 cartes de toute la manche, jusqu\'au résultat.' },
   unstableHigh: { kind: 'malus', emoji: '🔺', name: 'Main haute instable', description: 'si un habillé (valet, dame, roi) est sorti quand la turn tombe, le 1er du classement du flop reçoit une nouvelle main. L\'ancienne est montrée à la table.' },
   unstableLow: { kind: 'malus', emoji: '🔻', name: 'Main basse instable', description: 'si aucun habillé (valet, dame, roi) n\'est sorti quand la turn tombe, le dernier du classement du flop reçoit une nouvelle main. L\'ancienne est montrée à la table.' },
+  crown: { kind: 'malus', emoji: '👑', name: 'Lourde est la couronne', description: 'le 1er du premier tour devient le roi. Il ne fait plus rien lui-même (ni placement, ni tour suivant, ni bonus, ni aide), ne voit plus ses cartes et ne regarde plus la table : ses sujets le placent pour lui, en l\'appelant « mon roi ».' },
   swap: { kind: 'bonus', emoji: '🔄', name: 'Échange', description: 'le premier qui clique remplace une de ses cartes, l\'ancienne est montrée à la table.' },
   reveal: { kind: 'bonus', emoji: '👁️', name: 'Révélation', description: 'le premier qui clique montre une de ses cartes à la table.' },
   spyglass: { kind: 'bonus', emoji: '🔭', name: 'Longue-vue', description: 'une fois, le bot annonce la plus haute combinaison parmi toutes les mains, avec le tableau du moment.' },

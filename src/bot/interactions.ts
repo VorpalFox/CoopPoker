@@ -2,7 +2,7 @@ import { type ButtonInteraction, type ChatInputCommandInteraction, type Interact
 import { TIMER_SECONDS_PER_PLAYER } from '../game/effects.js'
 import { Game, GameError, type Seat } from '../game/game.js'
 import { COMMAND_NAME } from './commands.js'
-import { BUTTON_PREFIX, STEP_SEPARATOR, type CardChoiceKind, type PlayerChoiceKind, renderCardChoice, renderHandRanking, renderHoleCards, renderDuelChoice, renderInfo, renderPlayerChoice, renderRankChoice, renderTable } from './render.js'
+import { BUTTON_PREFIX, STEP_SEPARATOR, type CardChoiceKind, type PlayerChoiceKind, renderCardChoice, renderHandRanking, renderHoleCards, renderDuelChoice, renderInfo, renderKingChoice, renderPlayerChoice, renderRankChoice, renderTable } from './render.js'
 
 // Une manche = 2 messages dans le salon : les infos fixes de la manche (règles, n° de manche, score, bonus / malus)
 // et la table juste en dessous, modifiée sur place à chaque clic. Chaque nouvelle manche reposte les 2.
@@ -92,6 +92,9 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
 
   // l'aide marche pour tout le monde, même sans partie en cours
   if (action === 'help') {
+    // malus "Lourde est la couronne" : le roi ne regarde plus les aides
+    if (sessions.get(interaction.channelId)?.game.isKing(interaction.user.id))
+      throw new GameError('👑 Le roi ne regarde plus les aides : ses sujets s\'en chargent.', true)
     await interaction.reply({ ...renderHandRanking(), flags: MessageFlags.Ephemeral })
     return
   }
@@ -142,11 +145,14 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
       await updateTable(interaction, session)
       return
     case 'next':
-      game.requirePlayer(userId)
+      game.requireActor(userId)
       game.advance()
       startRoundTimer(session)
       await updateTable(interaction, session)
-      await refreshReshuffled(session)
+      await refreshAfterAdvance(session)
+      return
+    case 'king':
+      await handleKingChoice(interaction, session, arg)
       return
     case 'swap':
     case 'reveal':
@@ -204,7 +210,7 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
 // Bonus Échange / Révélation, en 2 clics : le bouton de la table ouvre un choix caché, puis on choisit la carte
 async function handleCardChoice(interaction: ButtonInteraction, session: TableSession, kind: CardChoiceKind, cardIndex: string | undefined): Promise<void> {
   const { game } = session
-  const player = game.requirePlayer(interaction.user.id)
+  const player = game.requireActor(interaction.user.id)
 
   if (cardIndex === undefined) {
     game.requireCardBonus(kind)
@@ -235,7 +241,7 @@ async function handleCardChoice(interaction: ButtonInteraction, session: TableSe
 // (le Duel en demande un 2e)
 async function handlePlayerChoice(interaction: ButtonInteraction, session: TableSession, kind: PlayerChoiceKind, targetId: string | undefined, secondId: string | undefined): Promise<void> {
   const { game } = session
-  const player = game.requirePlayer(interaction.user.id)
+  const player = game.requireActor(interaction.user.id)
 
   if (targetId === undefined) {
     await interaction.reply({ ...renderPlayerChoice(kind, playerChoiceTargets(game, kind, player.id)), flags: MessageFlags.Ephemeral })
@@ -277,7 +283,7 @@ function playerChoiceTargets(game: Game, kind: PlayerChoiceKind, playerId: strin
 // Bonus Recensement, en 2 clics : le bouton de la table ouvre un choix caché, puis on choisit la valeur
 async function handleRankChoice(interaction: ButtonInteraction, session: TableSession, rank: string | undefined): Promise<void> {
   const { game } = session
-  const player = game.requirePlayer(interaction.user.id)
+  const player = game.requireActor(interaction.user.id)
 
   if (rank === undefined) {
     game.requireCensus()
@@ -299,6 +305,23 @@ async function useFromChoice(interaction: ButtonInteraction, session: TableSessi
   }
   await interaction.deferUpdate()
   await interaction.deleteReply()
+  await editTable(session)
+}
+
+// Malus "Lourde est la couronne" : le bouton de la table ouvre un choix caché pour placer le roi.
+// Le choix reste ouvert et se met à jour, pour pouvoir le déplacer plusieurs fois.
+async function handleKingChoice(interaction: ButtonInteraction, session: TableSession, position: string | undefined): Promise<void> {
+  const { game } = session
+  const userId = interaction.user.id
+
+  if (position === undefined) {
+    game.requireActor(userId)
+    await interaction.reply({ ...renderKingChoice(game), flags: MessageFlags.Ephemeral })
+    return
+  }
+
+  game.placeKing(userId, Number(position))
+  await interaction.update(renderKingChoice(game))
   await editTable(session)
 }
 
@@ -343,12 +366,13 @@ async function onTimeout(session: TableSession): Promise<void> {
   session.game.timeout()
   startRoundTimer(session)
   await editTable(session)
-  await refreshReshuffled(session)
+  await refreshAfterAdvance(session)
 }
 
-// Malus "Main instable" : la nouvelle main arrive dans "Mes cartes" au tour où elle est donnée
-async function refreshReshuffled(session: TableSession): Promise<void> {
-  if (session.game.reshuffle?.phase === session.game.phase)
+// "Mes cartes" suit le changement de tour : nouvelle main (main instable) ou cartes masquées (roi couronné)
+async function refreshAfterAdvance(session: TableSession): Promise<void> {
+  const { game } = session
+  if (game.reshuffle?.phase === game.phase || game.crown?.phase === game.phase)
     await refreshCardViews(session)
 }
 

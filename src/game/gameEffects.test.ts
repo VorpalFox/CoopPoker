@@ -326,6 +326,57 @@ describe('Game avec bonus / malus', () => {
     expect(game.reshuffle?.playerId).toBe('alice')
   })
 
+  it('advance_MalusCouronne_LePremierDuPreflopDevientRoiEtNeFaitPlusRien', () => {
+    startWith('crown', 'mountain')
+    playRound(1, 2)
+
+    expect(game.crown).toEqual({ playerId: 'alice', phase: 'flop' })
+    expect(() => game.takePosition('alice', 1)).toThrow(GameError)
+    expect(() => game.lock('alice')).toThrow(GameError)
+    expect(() => game.useMountain('alice')).toThrow(GameError)
+    expect(() => game.requireActor('alice')).toThrow(GameError)
+  })
+
+  it('placeKing_MalusCouronne_UnSujetPlaceLeRoi', () => {
+    startWith('crown')
+    playRound(1, 2)
+
+    game.placeKing('bob', 2)
+
+    expect(game.findPlayer('alice')?.position).toBe(2)
+    expect(() => game.placeKing('alice', 1)).toThrow(GameError)
+  })
+
+  it('advance_MalusCouronneSansPreflop_RoiCouronneAuFlop', () => {
+    startWith('crown', 'noPreflop')
+    expect(game.crown).toBeNull()
+
+    playRound(2, 1)
+
+    expect(game.crown?.playerId).toBe('bob')
+  })
+
+  it('advance_MalusCouronneFantomeEnTete_LeMieuxPlaceDevientRoi', () => {
+    startWith('crown', 'ghost')
+
+    playRound(3, 2)
+
+    expect(game.crown?.playerId).toBe('bob')
+  })
+
+  it('isKing_MalusCouronneApresLeResultat_PlusDeRoi', () => {
+    startWith('crown')
+    playRound(1, 2)
+    for (let i = 0; i < 3; i++) {
+      game.placeKing('bob', 1)
+      game.takePosition('bob', 2)
+      game.advance()
+    }
+
+    expect(game.result?.success).toBe(true)
+    expect(game.isKing('alice')).toBe(false)
+  })
+
   it('isFlopCardHidden_MalusCarteCachee_CacheeAuFlopEtAuTurnPuisRetourneeALaRiver', () => {
     startWith('hiddenFlopCard')
 

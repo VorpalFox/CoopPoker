@@ -26,6 +26,7 @@ export const BUTTON_IDS = {
   redLantern: `${BUTTON_PREFIX}:redLantern`,
   census: `${BUTTON_PREFIX}:census`,
   duel: `${BUTTON_PREFIX}:duel`,
+  king: `${BUTTON_PREFIX}:king`,
   mountain: `${BUTTON_PREFIX}:mountain`,
   bilge: `${BUTTON_PREFIX}:bilge`,
   deadCards: `${BUTTON_PREFIX}:deadCards`,
@@ -39,6 +40,8 @@ export const RANK_CHOICE_ID = (rank: number) => `${BUTTON_IDS.census}:${rank}`
 export const PLAYER_CHOICE_ID = (kind: PlayerChoiceKind, playerId: string) => `${BUTTON_PREFIX}:${kind}:${playerId}`
 // 2e joueur du Duel (cp:duel:<id du 1er>:<id du 2e>)
 export const DUEL_CHOICE_ID = (firstId: string, secondId: string) => `${BUTTON_IDS.duel}:${firstId}:${secondId}`
+// Position choisie par les sujets pour le roi (cp:king:3)
+export const KING_CHOICE_ID = (position: number) => `${BUTTON_IDS.king}:${position}`
 
 export type CardChoiceKind = 'swap' | 'reveal'
 export type PlayerChoiceKind = 'compass' | 'spy' | 'duel'
@@ -132,6 +135,8 @@ export function renderHandRanking(): BaseMessageOptions {
 
 // Cartes d'un joueur, en message caché (bouton "Mes cartes")
 export function renderHoleCards(game: Game, player: Player): BaseMessageOptions {
+  if (game.isKing(player.id))
+    return { content: '👑 Lourde est la couronne : le roi ne regarde plus ses cartes.', components: [] }
   // malus "Main de borgne" : la carte cachée est montrée de dos
   const slots: BoardSlot[] = player.hole.map((card, i) => (game.isHoleCardHidden(player.id, i) ? 'hidden' : card))
   const oneEyed = slots.includes('hidden') ? '\n☝️ Main de borgne : ta carte cachée se retourne au résultat.' : ''
@@ -158,6 +163,20 @@ export function renderDuelChoice(first: { id: string, name: string }, targets: {
     .filter(target => target.id !== first.id)
     .map(target => button(DUEL_CHOICE_ID(first.id, target.id), truncate(target.name, 40), ButtonStyle.Primary))
   return { content: `⚔️ ${escapeMarkdown(first.name)} contre qui ?`, components: rows(buttons) }
+}
+
+// Réponse privée du malus "Lourde est la couronne" : un sujet place le roi.
+// Vert : la position du roi, gris : prise par un autre, bleu : libre
+export function renderKingChoice(game: Game): BaseMessageOptions {
+  const king = game.requireKing()
+  const positions = Array.from({ length: game.positionCount }, (_, i) => {
+    const position = i + 1
+    const holder = game.players.find(player => player.position === position)
+    const style = !holder ? ButtonStyle.Primary : holder === king ? ButtonStyle.Success : ButtonStyle.Secondary
+    return button(KING_CHOICE_ID(position), `${position}`, style)
+  })
+  const where = king.position === null ? 'n\'est pas placé' : `est en position ${king.position}${king.locked ? ' (bloqué)' : ''}`
+  return { content: `👑 Où placer le roi ? ${playerName(king)} ${where}.`, components: rows(positions) }
 }
 
 // Réponse privée du bonus Recensement : on choisit la valeur
@@ -202,7 +221,7 @@ function bettingEmbed(game: Game, withFooter: boolean, deadline: number | null):
   const embed = new EmbedBuilder()
     .setColor(COLORS.betting)
     .setTitle(`🃏 ${PHASE_LABELS[game.phase]}`)
-    .setDescription(`${boardText(game)}${oneEyedText(game)}${reshuffleText(game)}${riverSwapText(game)}${timer}`)
+    .setDescription(`${boardText(game)}${crownText(game)}${oneEyedText(game)}${reshuffleText(game)}${riverSwapText(game)}${timer}`)
   if (!game.hasEffect('hiddenHistory'))
     addHistory(embed, game)
   addBonusUsage(embed, game)
@@ -319,6 +338,12 @@ function boardText(game: Game): string {
 }
 
 // Malus "Main de borgne" : la table sait qui ne voit qu'une carte
+function crownText(game: Game): string {
+  if (!game.crown)
+    return ''
+  return `\n👑 **${playerName(game.findPlayer(game.crown.playerId)!)}** porte la couronne : ses sujets jouent pour le roi`
+}
+
 function oneEyedText(game: Game): string {
   if (!game.oneEyed)
     return ''
@@ -398,6 +423,8 @@ function tableButtons(game: Game): ActionRowBuilder<ButtonBuilder>[] {
       if (!game.hasEffect('noLock'))
         actions.push(button(BUTTON_IDS.lock, '🔒 Bloquer ma position', ButtonStyle.Secondary).setDisabled(game.allLocked))
       actions.push(button(BUTTON_IDS.next, game.phase === 'river' ? 'Révéler ▶' : 'Tour suivant ▶', ButtonStyle.Success).setDisabled(!game.allPositioned))
+      if (game.crown)
+        actions.push(button(BUTTON_IDS.king, '👑 Placer le roi', ButtonStyle.Secondary))
 
       const positions = positionButtons(game)
       const bonuses = bonusButtons(game)
@@ -449,7 +476,7 @@ function positionButtons(game: Game): ButtonBuilder[] {
     const holder = game.players.find(player => player.position === position)
     if (!holder)
       return button(id, `${position}`, ButtonStyle.Primary)
-    const label = `${position} · ${truncate(holder.name, 20)}`
+    const label = `${position} · ${game.isKing(holder.id) ? '👑 ' : ''}${truncate(holder.name, 20)}`
     if (holder.locked)
       return button(id, label, ButtonStyle.Secondary).setDisabled(true)
     return button(id, label, ButtonStyle.Success)
