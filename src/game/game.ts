@@ -66,6 +66,14 @@ export interface RiverSwap {
   replacement: Card
 }
 
+// Malus "Main haute / basse instable" : la main remplacée quand la turn tombe
+export interface Reshuffle {
+  effect: 'unstableHigh'
+  phase: BettingPhase // le tour où c'est arrivé
+  playerId: string
+  discarded: Card[]
+}
+
 const NO_BONUS_USED: BonusUsage = { swapped: null, revealed: null, spyglass: null, mastermind: null, highestRank: null, lowestRank: null, deadCards: null, compass: null, spied: null, redLantern: null, census: null, duel: null }
 
 export class Game {
@@ -79,6 +87,7 @@ export class Game {
   effects: EffectId[] = [] // bonus / malus de la manche en cours
   bonusUsage: BonusUsage = { ...NO_BONUS_USED }
   riverSwap: RiverSwap | null = null
+  reshuffle: Reshuffle | null = null
   ghostHole: Card[] | null = null // malus "Joueur fantôme"
   oneEyed: { playerId: string, cardIndex: number } | null = null // malus "Main de borgne"
   step = 0 // change à chaque nouvelle manche et à chaque tour : un clic fait sur une étape passée est ignoré
@@ -182,6 +191,7 @@ export class Game {
     this.result = null
     this.bonusUsage = { ...NO_BONUS_USED }
     this.riverSwap = null
+    this.reshuffle = null
     for (const player of this.players) {
       player.hole = this.draw(2)
       player.position = null
@@ -271,6 +281,8 @@ export class Game {
     this.phase = next
     this.step++
     this.board.push(...this.draw(BOARD_SIZE[next] - this.board.length))
+    if (phase === 'flop')
+      this.shakeHand()
     if (next === 'river' && this.hasEffect('roughRiver'))
       this.stirRiver()
     if (next === 'showdown')
@@ -502,6 +514,21 @@ export class Game {
   private drawOneEyed(): { playerId: string, cardIndex: number } {
     const player = this.players[Math.floor(this.random() * this.players.length)]
     return { playerId: player.id, cardIndex: Math.floor(this.random() * 2) }
+  }
+
+  // Malus "Main haute instable" : si un habillé est sorti quand la turn tombe, le 1er du flop reçoit une nouvelle main.
+  // La carte cachée ne compte pas, sinon l'annonce dirait si c'en est un.
+  private shakeHand(): void {
+    const visible = this.board.filter((_, i) => i !== 0 || !this.isFlopCardHidden)
+    const faceCardOut = visible.some(card => card.rank >= 11 && card.rank <= 13)
+    if (!faceCardOut || !this.hasEffect('unstableHigh'))
+      return
+
+    const byFlopPosition = [...this.players].sort((a, b) => a.history.at(-1)!.position - b.history.at(-1)!.position)
+    const player = byFlopPosition[0]
+    const discarded = player.hole
+    player.hole = this.draw(2)
+    this.reshuffle = { effect: 'unstableHigh', phase: this.phase as BettingPhase, playerId: player.id, discarded }
   }
 
   // Malus "Rivière agitée" : une des 4 cartes d'avant la river (la cachée comprise) est remplacée

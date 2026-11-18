@@ -146,6 +146,7 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
       game.advance()
       startRoundTimer(session)
       await updateTable(interaction, session)
+      await refreshReshuffled(session)
       return
     case 'swap':
     case 'reveal':
@@ -342,6 +343,13 @@ async function onTimeout(session: TableSession): Promise<void> {
   session.game.timeout()
   startRoundTimer(session)
   await editTable(session)
+  await refreshReshuffled(session)
+}
+
+// Malus "Main instable" : la nouvelle main arrive dans "Mes cartes" au tour où elle est donnée
+async function refreshReshuffled(session: TableSession): Promise<void> {
+  if (session.game.reshuffle?.phase === session.game.phase)
+    await refreshCardViews(session)
 }
 
 // Met à jour les messages cachés "Mes cartes" (après un Échange, la carte a changé).

@@ -202,7 +202,7 @@ function bettingEmbed(game: Game, withFooter: boolean, deadline: number | null):
   const embed = new EmbedBuilder()
     .setColor(COLORS.betting)
     .setTitle(`🃏 ${PHASE_LABELS[game.phase]}`)
-    .setDescription(`${boardText(game)}${oneEyedText(game)}${riverSwapText(game)}${timer}`)
+    .setDescription(`${boardText(game)}${oneEyedText(game)}${reshuffleText(game)}${riverSwapText(game)}${timer}`)
   if (!game.hasEffect('hiddenHistory'))
     addHistory(embed, game)
   addBonusUsage(embed, game)
@@ -224,7 +224,7 @@ function showdownEmbed(game: Game): EmbedBuilder {
   const embed = new EmbedBuilder()
     .setColor(result.success ? COLORS.win : COLORS.loss)
     .setTitle(title)
-    .setDescription(`${boardText(game)}${riverSwapText(game)}`)
+    .setDescription(`${boardText(game)}${reshuffleText(game)}${riverSwapText(game)}`)
     .addFields({ name: 'Résultat', value: result.entries.map(showdownLine).join('\n') })
   addHistory(embed, game)
   addBonusUsage(embed, game)
@@ -323,6 +323,15 @@ function oneEyedText(game: Game): string {
   if (!game.oneEyed)
     return ''
   return `\n☝️ ${playerName(game.findPlayer(game.oneEyed.playerId)!)} ne voit qu'une de ses cartes`
+}
+
+// Malus "Main haute instable" : la main défaussée, annoncée sous le tableau
+function reshuffleText(game: Game): string {
+  if (!game.reshuffle)
+    return ''
+  const { effect, playerId, discarded } = game.reshuffle
+  const name = playerName(game.findPlayer(playerId)!)
+  return `\n${EFFECTS[effect].emoji} Un habillé est sorti : **${name}** (1er au flop) défausse **${formatCards(discarded)}** et reçoit une nouvelle main`
 }
 
 // Malus "Rivière agitée" : la carte emportée, annoncée sous le tableau

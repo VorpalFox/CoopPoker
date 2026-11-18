@@ -259,6 +259,41 @@ describe('Game avec bonus / malus', () => {
     expect(game.isHoleCardHidden('alice', 0)).toBe(false)
   })
 
+  it('advance_MalusMainHauteInstableAvecHabille_LePremierDuFlopRecoitUneNouvelleMain', () => {
+    // flop 9h Js 4c : un valet est sorti
+    startWith('unstableHigh')
+    playRound(2, 1)
+    playRound(1, 2)
+
+    expect(game.reshuffle).toEqual({ effect: 'unstableHigh', phase: 'turn', playerId: 'alice', discarded: parseCards('Ah Ad') })
+    expect(game.findPlayer('alice')?.hole).toEqual(parseCards('3h Qs'))
+    expect(game.findPlayer('bob')?.hole).toEqual(parseCards('7c 2s'))
+  })
+
+  it('advance_MalusMainHauteInstableSansHabille_RienNeChange', () => {
+    game = new Game(() => parseCards('Ah Ad 7c 2s 9h 5s 4c 8d 3h Qs Qd'), () => 0)
+    game.join('alice', 'Alice')
+    game.join('bob', 'Bob')
+    startWith('unstableHigh', 'noPreflop')
+
+    playRound(1, 2)
+
+    expect(game.reshuffle).toBeNull()
+    expect(game.findPlayer('alice')?.hole).toEqual(parseCards('Ah Ad'))
+  })
+
+  it('advance_MalusMainHauteInstableHabilleCache_NeComptePas', () => {
+    // le valet est la 1re carte du flop, face cachée
+    game = new Game(() => parseCards('Ah Ad 7c 2s Jh 5s 4c 8d 3h Qs Qd'), () => 0)
+    game.join('alice', 'Alice')
+    game.join('bob', 'Bob')
+    startWith('unstableHigh', 'hiddenFlopCard', 'noPreflop')
+
+    playRound(1, 2)
+
+    expect(game.reshuffle).toBeNull()
+  })
+
   it('isFlopCardHidden_MalusCarteCachee_CacheeAuFlopEtAuTurnPuisRetourneeALaRiver', () => {
     startWith('hiddenFlopCard')
 
