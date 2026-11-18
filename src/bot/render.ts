@@ -6,6 +6,7 @@ import { HAND_NAMES } from '../game/handEvaluator.js'
 import { type ShowdownEntry } from '../game/showdown.js'
 
 export const BUTTON_PREFIX = 'cp'
+export const STEP_SEPARATOR = '#'
 export const BUTTON_IDS = {
   join: `${BUTTON_PREFIX}:join`,
   leave: `${BUTTON_PREFIX}:leave`,
@@ -76,8 +77,19 @@ interface TableOptions {
 export function renderTable(game: Game, { withButtons = true, deadline = null }: TableOptions = {}): BaseMessageOptions {
   return {
     embeds: [tableEmbed(game, withButtons, deadline)],
-    components: withButtons ? tableButtons(game) : [],
+    components: withButtons ? stamped(tableButtons(game), game.step) : [],
   }
+}
+
+// Ajoute l'étape de la partie aux boutons de la table (cp:next#12) : un clic fait sur une étape passée,
+// typiquement un 2e "Tour suivant" en même temps, sera ignoré. "Mes cartes" marche à tout moment.
+function stamped(rows: ActionRowBuilder<ButtonBuilder>[], step: number): ActionRowBuilder<ButtonBuilder>[] {
+  for (const component of rows.flatMap(r => r.components)) {
+    const id = 'custom_id' in component.data ? component.data.custom_id : undefined
+    if (id && id !== BUTTON_IDS.cards)
+      component.setCustomId(`${id}${STEP_SEPARATOR}${step}`)
+  }
+  return rows
 }
 
 // Message du haut : les infos fixes de la manche (règles, n° de manche, score, bonus / malus)

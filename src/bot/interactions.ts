@@ -2,11 +2,12 @@ import { type ButtonInteraction, type ChatInputCommandInteraction, type Interact
 import { TIMER_SECONDS_PER_PLAYER } from '../game/effects.js'
 import { Game, GameError } from '../game/game.js'
 import { COMMAND_NAME } from './commands.js'
-import { BUTTON_PREFIX, type CardChoiceKind, renderCardChoice, renderHandRanking, renderHoleCards, renderInfo, renderTable } from './render.js'
+import { BUTTON_PREFIX, STEP_SEPARATOR, type CardChoiceKind, renderCardChoice, renderHandRanking, renderHoleCards, renderInfo, renderTable } from './render.js'
 
 // Une manche = 2 messages dans le salon : les infos fixes de la manche (règles, n° de manche, score, bonus / malus)
 // et la table juste en dessous, modifiée sur place à chaque clic. Chaque nouvelle manche reposte les 2.
 interface TableSession {
+  channelId: string
   game: Game
   tableMessage: Message | null // pour modifier la table sans clic dessus (chrono, choix de carte)
   // dernier clic "Mes cartes" de chaque joueur pour la manche en cours. Discord laisse le bot
@@ -20,10 +21,23 @@ interface TableSession {
 // Une table par salon, gardée en mémoire (perdue au redémarrage du bot, c'est assumé)
 const sessions = new Map<string, TableSession>()
 
+// File d'attente par salon : les clics simultanés sont traités l'un après l'autre, pour que les mises à jour
+// de la table partent dans l'ordre (sinon une table périmée peut arriver après la bonne et l'écraser)
+const queues = new Map<string, Promise<void>>()
+
+function inQueue(channelId: string, task: () => Promise<void>): Promise<void> {
+  const run = (queues.get(channelId) ?? Promise.resolve()).then(task)
+  queues.set(channelId, run.catch(() => {}))
+  return run
+}
+
 export async function handleInteraction(interaction: Interaction): Promise<void> {
   if (!interaction.isRepliable())
     return
+  await inQueue(interaction.channelId ?? '', () => dispatch(interaction))
+}
 
+async function dispatch(interaction: RepliableInteraction): Promise<void> {
   try {
     if (interaction.isChatInputCommand() && interaction.commandName === COMMAND_NAME)
       await handleCommand(interaction)
@@ -32,7 +46,14 @@ export async function handleInteraction(interaction: Interaction): Promise<void>
   } catch (error) {
     if (!(error instanceof GameError))
       throw error
-    await interaction.reply({ content: `⚠️ ${error.message}`, flags: MessageFlags.Ephemeral })
+    // clic qui n'a plus lieu d'être (un autre joueur a été plus rapide) : on acquitte sans rien changer
+    if (interaction.isButton() && !error.shown) {
+      if (!interaction.replied && !interaction.deferred)
+        await interaction.deferUpdate()
+      return
+    }
+    const message = { content: `⚠️ ${error.message}`, flags: MessageFlags.Ephemeral } as const
+    await (interaction.replied || interaction.deferred ? interaction.followUp(message) : interaction.reply(message))
   }
 }
 
@@ -45,7 +66,7 @@ async function handleCommand(interaction: ChatInputCommandInteraction): Promise<
         throw new GameError('Il y a déjà une table dans ce salon (`/poker table` pour la réafficher, `/poker stop` pour la fermer).')
       const game = new Game()
       game.join(interaction.user.id, displayName(interaction))
-      sessions.set(channelId, { game, tableMessage: null, cardViews: new Map(), timer: null, deadline: null })
+      sessions.set(channelId, { channelId, game, tableMessage: null, cardViews: new Map(), timer: null, deadline: null })
       await interaction.reply(renderTable(game))
       return
     }
@@ -66,7 +87,8 @@ async function handleCommand(interaction: ChatInputCommandInteraction): Promise<
 }
 
 async function handleButton(interaction: ButtonInteraction): Promise<void> {
-  const [, action, arg] = interaction.customId.split(':')
+  const [buttonId, step] = interaction.customId.split(STEP_SEPARATOR)
+  const [, action, arg] = buttonId.split(':')
 
   // l'aide marche pour tout le monde, même sans partie en cours
   if (action === 'help') {
@@ -77,6 +99,12 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
   const session = requireSession(interaction.channelId)
   const { game } = session
   const userId = interaction.user.id
+
+  // bouton d'une étape passée (le tour a changé entre-temps) : rien à faire
+  if (step !== undefined && Number(step) !== game.step) {
+    await interaction.deferUpdate()
+    return
+  }
 
   switch (action) {
     case 'join':
@@ -154,14 +182,24 @@ async function handleCardChoice(interaction: ButtonInteraction, session: TableSe
   const player = game.requirePlayer(interaction.user.id)
 
   if (cardIndex === undefined) {
+    game.requireCardBonus(kind)
     await interaction.reply({ ...renderCardChoice(player, kind), flags: MessageFlags.Ephemeral })
     return
   }
 
-  if (kind === 'swap')
-    game.swapCard(player.id, Number(cardIndex))
-  else
-    game.revealCard(player.id, Number(cardIndex))
+  try {
+    if (kind === 'swap')
+      game.swapCard(player.id, Number(cardIndex))
+    else
+      game.revealCard(player.id, Number(cardIndex))
+  } catch (error) {
+    if (!(error instanceof GameError) || error.shown)
+      throw error
+    // quelqu'un a pris le bonus entre-temps : on retire juste le choix de carte devenu inutile
+    await interaction.deferUpdate()
+    await interaction.deleteReply()
+    return
+  }
   await interaction.update(renderHoleCards(player))
   await editTable(session)
   if (kind === 'swap')
@@ -194,7 +232,7 @@ function startRoundTimer(session: TableSession): void {
   const duration = TIMER_SECONDS_PER_PLAYER * 1000 * game.players.length
   session.deadline = Date.now() + duration
   session.timer = setTimeout(() => {
-    onTimeout(session).catch(error => console.error('Erreur à la fin du chrono', error))
+    inQueue(session.channelId, () => onTimeout(session)).catch(error => console.error('Erreur à la fin du chrono', error))
   }, duration)
 }
 
@@ -233,7 +271,7 @@ async function refreshCardViews(session: TableSession): Promise<void> {
 function requireSession(channelId: string): TableSession {
   const session = sessions.get(channelId)
   if (!session)
-    throw new GameError('Pas de table dans ce salon, ouvre-en une avec `/poker create`.')
+    throw new GameError('Pas de table dans ce salon, ouvre-en une avec `/poker create`.', true)
   return session
 }
 

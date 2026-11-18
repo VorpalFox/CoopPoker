@@ -12,8 +12,14 @@ export type BettingPhase = 'preflop' | 'flop' | 'turn' | 'river'
 const NEXT_PHASE: Partial<Record<Phase, Phase>> = { preflop: 'flop', flop: 'turn', turn: 'river', river: 'showdown' }
 const BOARD_SIZE: Record<Phase, number> = { lobby: 0, preflop: 0, flop: 3, turn: 4, river: 5, showdown: 5 }
 
-// Erreur "normale" de jeu, affichée telle quelle au joueur
-export class GameError extends Error {}
+// Erreur "normale" de jeu. Sur un clic de bouton, seules celles marquées `shown` sont affichées au joueur :
+// les autres viennent d'un clic qui n'a plus lieu d'être (deux joueurs en même temps, table pas encore à jour),
+// et on ne fait juste rien.
+export class GameError extends Error {
+  constructor(message: string, readonly shown = false) {
+    super(message)
+  }
+}
 
 // Comme un jeton : face blanche (volable) ou retourné face noire (bloqué)
 export interface RoundPosition {
@@ -51,6 +57,7 @@ export class Game {
   chaosMode = false
   effects: EffectId[] = [] // bonus / malus de la manche en cours
   bonusUsage: BonusUsage = { ...NO_BONUS_USED }
+  step = 0 // change à chaque nouvelle manche et à chaque tour : un clic fait sur une étape passée est ignoré
   private lastSuccess: boolean | null = null
   private deck: Card[] = []
 
@@ -92,7 +99,7 @@ export class Game {
   requirePlayer(id: string): Player {
     const player = this.findPlayer(id)
     if (!player)
-      throw new GameError('Tu ne joues pas à cette table.')
+      throw new GameError('Tu ne joues pas à cette table.', true)
     return player
   }
 
@@ -102,7 +109,7 @@ export class Game {
     if (this.findPlayer(id))
       throw new GameError('Tu es déjà à la table.')
     if (this.players.length >= MAX_PLAYERS)
-      throw new GameError(`La table est pleine (${MAX_PLAYERS} joueurs max).`)
+      throw new GameError(`La table est pleine (${MAX_PLAYERS} joueurs max).`, true)
 
     this.players.push({ id, name, hole: [], position: null, locked: false, history: [] })
   }
@@ -145,6 +152,7 @@ export class Game {
     // malus "Pas de pré-flop" : on attaque directement au flop
     this.phase = this.hasEffect('noPreflop') ? 'flop' : 'preflop'
     this.board = this.draw(BOARD_SIZE[this.phase])
+    this.step++
   }
 
   // Renvoie le joueur à qui on a piqué la position, s'il y en a un
@@ -181,7 +189,7 @@ export class Game {
       throw new GameError('Malus « Pas de blocage » : impossible de bloquer cette manche.')
     const player = this.requirePlayer(playerId)
     if (player.position === null)
-      throw new GameError('Prends d\'abord une position avant de la bloquer.')
+      throw new GameError('Prends d\'abord une position avant de la bloquer.', true)
     if (player.locked)
       throw new GameError('Ta position est déjà bloquée.')
 
@@ -202,6 +210,7 @@ export class Game {
       player.locked = false
     }
     this.phase = next
+    this.step++
     this.board.push(...this.draw(BOARD_SIZE[next] - this.board.length))
     if (next === 'showdown')
       this.finishRound()
@@ -220,11 +229,16 @@ export class Game {
     this.advance()
   }
 
+  // Bonus Échange / Révélation encore dispo ? (le premier qui clique le prend)
+  requireCardBonus(kind: 'swap' | 'reveal'): void {
+    this.requireBonus(kind)
+    if (kind === 'swap' ? this.bonusUsage.swappedBy : this.bonusUsage.revealed)
+      throw new GameError(kind === 'swap' ? 'L\'échange a déjà été utilisé cette manche.' : 'La révélation a déjà été utilisée cette manche.')
+  }
+
   // Bonus "Échange" : remplace une de ses cartes par une neuve du paquet
   swapCard(playerId: string, cardIndex: number): void {
-    this.requireBonus('swap')
-    if (this.bonusUsage.swappedBy)
-      throw new GameError('L\'échange a déjà été utilisé cette manche.')
+    this.requireCardBonus('swap')
     const player = this.requirePlayer(playerId)
     this.requireCardIndex(cardIndex)
 
@@ -234,9 +248,7 @@ export class Game {
 
   // Bonus "Révélation" : montre une de ses cartes à toute la table
   revealCard(playerId: string, cardIndex: number): void {
-    this.requireBonus('reveal')
-    if (this.bonusUsage.revealed)
-      throw new GameError('La révélation a déjà été utilisée cette manche.')
+    this.requireCardBonus('reveal')
     const player = this.requirePlayer(playerId)
     this.requireCardIndex(cardIndex)
 

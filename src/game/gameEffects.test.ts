@@ -75,6 +75,19 @@ describe('Game avec bonus / malus', () => {
     expect(game.findPlayer('alice')?.history[0].phase).toBe('flop')
   })
 
+  it('step_NouvelleMancheEtChaqueTour_Change', () => {
+    const steps = [game.step]
+    game.start()
+    steps.push(game.step)
+    playRound(1, 2)
+    steps.push(game.step)
+    placeAll(1, 2)
+    steps.push(game.step) // prendre une position ne change pas d'étape
+
+    expect(new Set(steps).size).toBe(3)
+    expect(steps[2]).toBe(steps[3])
+  })
+
   it('isFlopCardHidden_MalusCarteCachee_CacheeAuFlopEtAuTurnPuisRetourneeALaRiver', () => {
     startWith('hiddenFlopCard')
 
