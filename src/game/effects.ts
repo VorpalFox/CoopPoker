@@ -2,7 +2,7 @@
 // En mode chaos ils s'accumulent : une victoire retire le plus vieux bonus et ajoute un malus, et inversement.
 
 export type MalusId = 'noLock' | 'noPreflop' | 'hiddenHistory' | 'timer' | 'hiddenFlopCard' | 'noSteal' | 'firstLocked' | 'noTurn' | 'roughRiver'
-export type BonusId = 'swap' | 'reveal' | 'spyglass' | 'mastermind' | 'secondChance' | 'mountain' | 'bilge' | 'deadCards'
+export type BonusId = 'swap' | 'reveal' | 'spyglass' | 'mastermind' | 'secondChance' | 'mountain' | 'bilge' | 'deadCards' | 'compass'
 export type EffectId = MalusId | BonusId
 export type EffectKind = 'malus' | 'bonus'
 
@@ -34,6 +34,7 @@ export const EFFECTS: Record<EffectId, EffectInfo> = {
   mountain: { kind: 'bonus', emoji: '⛰️', name: 'Montagne', description: 'une fois, le bot annonce la plus haute carte en main, valeur seulement, sans dire qui l\'a.' },
   bilge: { kind: 'bonus', emoji: '⚓', name: 'Fond de cale', description: 'une fois, le bot annonce la plus basse carte en main, valeur seulement, sans dire qui l\'a.' },
   deadCards: { kind: 'bonus', emoji: '☠️', name: 'Cartes mortes', description: `une fois, le bot brûle ${DEAD_CARD_COUNT} cartes du paquet et les montre : elles ne sont dans aucune main et ne sortiront pas au tableau.` },
+  compass: { kind: 'bonus', emoji: '🧭', name: 'Boussole', description: 'une fois, à partir du flop, on choisit un joueur placé et le bot dit s\'il est bien ou mal placé avec le tableau du moment.' },
 }
 
 export const EFFECT_IDS = Object.keys(EFFECTS) as EffectId[]

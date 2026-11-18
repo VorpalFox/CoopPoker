@@ -46,6 +46,7 @@ export interface BonusUsage {
   highestRank: number | null
   lowestRank: number | null
   deadCards: Card[] | null
+  compass: { phase: BettingPhase, playerId: string, position: number, correct: boolean } | null
 }
 
 // Malus "Rivière agitée" : la carte du tableau emportée par la river
@@ -55,7 +56,7 @@ export interface RiverSwap {
   replacement: Card
 }
 
-const NO_BONUS_USED: BonusUsage = { swappedBy: null, revealed: null, spyglass: null, mastermind: null, highestRank: null, lowestRank: null, deadCards: null }
+const NO_BONUS_USED: BonusUsage = { swappedBy: null, revealed: null, spyglass: null, mastermind: null, highestRank: null, lowestRank: null, deadCards: null, compass: null }
 
 export class Game {
   phase: Phase = 'lobby'
@@ -333,6 +334,31 @@ export class Game {
       throw new GameError('Les cartes mortes ont déjà été brûlées cette manche.')
 
     this.bonusUsage.deadCards = this.draw(DEAD_CARD_COUNT)
+  }
+
+  // Bonus "Boussole" encore dispo ? Renvoie les joueurs qu'on peut choisir : ceux qui sont placés
+  compassTargets(): Player[] {
+    this.requireBonus('compass')
+    if (this.bonusUsage.compass)
+      throw new GameError('La boussole a déjà été utilisée cette manche.')
+    this.requireFlop('La boussole')
+
+    const targets = this.players.filter(player => player.position !== null)
+    if (targets.length === 0)
+      throw new GameError('Personne n\'est placé pour l\'instant.', true)
+    return targets
+  }
+
+  // Bonus "Boussole" : ce joueur est-il bien placé avec le tableau du moment ?
+  useCompass(playerId: string, targetId: string): void {
+    this.compassTargets()
+    this.requirePlayer(playerId)
+    const target = this.findPlayer(targetId)
+    if (target?.position == null)
+      throw new GameError(`${target?.name ?? 'Ce joueur'} n'est plus placé, choisis-en un autre.`, true)
+
+    const { correct } = this.currentShowdown().entries.find(entry => entry.id === target.id)!
+    this.bonusUsage.compass = { phase: this.phase as BettingPhase, playerId: target.id, position: target.position, correct }
   }
 
   // Classement avec le tableau du moment et les positions du tour en cours (0 pour qui n'est pas placé)

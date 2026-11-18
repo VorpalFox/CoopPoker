@@ -293,6 +293,43 @@ describe('Game avec bonus / malus', () => {
     expect(() => game.useDeadCards('bob')).toThrow(GameError)
   })
 
+  it('useCompass_JoueurBienPlace_LeDit', () => {
+    startWith('compass')
+    playRound(1, 2)
+    game.takePosition('bob', 2)
+
+    game.useCompass('alice', 'bob')
+
+    expect(game.bonusUsage.compass).toEqual({ phase: 'flop', playerId: 'bob', position: 2, correct: true })
+    expect(() => game.useCompass('alice', 'bob')).toThrow(GameError)
+  })
+
+  it('useCompass_JoueurMalPlace_LeDit', () => {
+    startWith('compass')
+    playRound(1, 2)
+    game.takePosition('bob', 1)
+
+    game.useCompass('bob', 'bob')
+
+    expect(game.bonusUsage.compass?.correct).toBe(false)
+  })
+
+  it('useCompass_JoueurPasPlace_Refuse', () => {
+    startWith('compass')
+    playRound(1, 2)
+    game.takePosition('bob', 1)
+
+    expect(game.compassTargets().map(player => player.id)).toEqual(['bob'])
+    expect(() => game.useCompass('bob', 'alice')).toThrow(GameError)
+  })
+
+  it('compassTargets_AvantLeFlop_Refuse', () => {
+    startWith('compass')
+    placeAll(1, 2)
+
+    expect(() => game.compassTargets()).toThrow(GameError)
+  })
+
   it('finishRound_SecondeChanceInversionVoisins_Gagne', () => {
     startWith('secondChance')
     for (let i = 0; i < 4; i++) {

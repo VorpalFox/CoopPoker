@@ -21,6 +21,7 @@ export const BUTTON_IDS = {
   reveal: `${BUTTON_PREFIX}:reveal`,
   spyglass: `${BUTTON_PREFIX}:spyglass`,
   mastermind: `${BUTTON_PREFIX}:mastermind`,
+  compass: `${BUTTON_PREFIX}:compass`,
   mountain: `${BUTTON_PREFIX}:mountain`,
   bilge: `${BUTTON_PREFIX}:bilge`,
   deadCards: `${BUTTON_PREFIX}:deadCards`,
@@ -28,8 +29,15 @@ export const BUTTON_IDS = {
 export const POSITION_BUTTON_ID = (position: number) => `${BUTTON_PREFIX}:pos:${position}`
 // Choix de la carte à échanger / montrer (cp:swap:0, cp:reveal:1...)
 export const CARD_CHOICE_ID = (kind: CardChoiceKind, cardIndex: number) => `${BUTTON_PREFIX}:${kind}:${cardIndex}`
+// Choix du joueur visé (cp:compass:<id du joueur>)
+export const PLAYER_CHOICE_ID = (kind: PlayerChoiceKind, playerId: string) => `${BUTTON_PREFIX}:${kind}:${playerId}`
 
 export type CardChoiceKind = 'swap' | 'reveal'
+export type PlayerChoiceKind = 'compass'
+
+const PLAYER_CHOICE_QUESTIONS: Record<PlayerChoiceKind, string> = {
+  compass: '🧭 Quel joueur veux-tu vérifier ?',
+}
 
 const PHASE_LABELS: Record<Phase, string> = {
   lobby: 'Salle d\'attente',
@@ -121,6 +129,12 @@ export function renderCardChoice(player: Player, kind: CardChoiceKind): BaseMess
   const question = kind === 'swap' ? '🔄 Quelle carte veux-tu échanger ?' : '👁️ Quelle carte veux-tu montrer à la table ?'
   const buttons = player.hole.map((card, i) => button(CARD_CHOICE_ID(kind, i), formatCard(card), ButtonStyle.Primary))
   return { content: question, components: [row(...buttons)] }
+}
+
+// Réponse privée des bonus Boussole / Espion : on choisit le joueur
+export function renderPlayerChoice(kind: PlayerChoiceKind, targets: { id: string, name: string }[]): BaseMessageOptions {
+  const buttons = targets.map(target => button(PLAYER_CHOICE_ID(kind, target.id), truncate(target.name, 40), ButtonStyle.Primary))
+  return { content: PLAYER_CHOICE_QUESTIONS[kind], components: rows(buttons) }
 }
 
 // Numéro de la manche en cours (ou qui vient de se finir à l'abattage)
@@ -217,7 +231,7 @@ function addHistory(embed: EmbedBuilder, game: Game): void {
 }
 
 function addBonusUsage(embed: EmbedBuilder, game: Game): void {
-  const { swappedBy, revealed, spyglass, mastermind, highestRank, lowestRank, deadCards } = game.bonusUsage
+  const { swappedBy, revealed, spyglass, mastermind, highestRank, lowestRank, deadCards, compass } = game.bonusUsage
   const nameOf = (playerId: string) => escapeMarkdown(game.findPlayer(playerId)?.name ?? '?')
 
   const lines: string[] = []
@@ -235,6 +249,8 @@ function addBonusUsage(embed: EmbedBuilder, game: Game): void {
     lines.push(`⚓ La plus basse carte en main : **${rankName(lowestRank)}**`)
   if (deadCards)
     lines.push(`☠️ Cartes mortes : **${formatCards(deadCards)}**`)
+  if (compass)
+    lines.push(`🧭 Au ${PHASE_LABELS[compass.phase].toLowerCase()} : ${compass.correct ? '✅' : '❌'} ${nameOf(compass.playerId)} (position ${compass.position}) est **${compass.correct ? 'bien' : 'mal'} placé**`)
   if (lines.length > 0)
     embed.addFields({ name: '😇 Bonus utilisés', value: lines.join('\n') })
 }
@@ -329,7 +345,7 @@ function tableButtons(game: Game): ActionRowBuilder<ButtonBuilder>[] {
 
 // Un bouton par bonus actif pas encore utilisé
 function bonusButtons(game: Game): ButtonBuilder[] {
-  const { swappedBy, revealed, spyglass, mastermind, highestRank, lowestRank, deadCards } = game.bonusUsage
+  const { swappedBy, revealed, spyglass, mastermind, highestRank, lowestRank, deadCards, compass } = game.bonusUsage
   const beforeFlop = game.board.length < 3
   const buttons: ButtonBuilder[] = []
   if (game.hasEffect('swap') && !swappedBy)
@@ -346,6 +362,8 @@ function bonusButtons(game: Game): ButtonBuilder[] {
     buttons.push(button(BUTTON_IDS.bilge, '⚓ Plus basse carte', ButtonStyle.Primary))
   if (game.hasEffect('deadCards') && !deadCards)
     buttons.push(button(BUTTON_IDS.deadCards, '☠️ Cartes mortes', ButtonStyle.Primary))
+  if (game.hasEffect('compass') && !compass)
+    buttons.push(button(BUTTON_IDS.compass, '🧭 Boussole', ButtonStyle.Primary).setDisabled(beforeFlop || game.players.every(player => player.position === null)))
   return buttons
 }
 
@@ -363,12 +381,7 @@ function positionRows(game: Game): ActionRowBuilder<ButtonBuilder>[] {
       return button(id, label, ButtonStyle.Secondary).setDisabled(true)
     return button(id, label, ButtonStyle.Success)
   })
-
-  const rows: ActionRowBuilder<ButtonBuilder>[] = []
-  for (let i = 0; i < buttons.length; i += BUTTONS_PER_ROW) {
-    rows.push(row(...buttons.slice(i, i + BUTTONS_PER_ROW)))
-  }
-  return rows
+  return rows(buttons)
 }
 
 function chaosButton(game: Game): ButtonBuilder {
@@ -387,6 +400,15 @@ function button(customId: string, label: string, style: ButtonStyle): ButtonBuil
 
 function row(...buttons: ButtonBuilder[]): ActionRowBuilder<ButtonBuilder> {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(buttons)
+}
+
+// Autant de lignes que nécessaire, Discord en met 5 max par ligne
+function rows(buttons: ButtonBuilder[]): ActionRowBuilder<ButtonBuilder>[] {
+  const result: ActionRowBuilder<ButtonBuilder>[] = []
+  for (let i = 0; i < buttons.length; i += BUTTONS_PER_ROW) {
+    result.push(row(...buttons.slice(i, i + BUTTONS_PER_ROW)))
+  }
+  return result
 }
 
 function truncate(text: string, maxLength: number): string {

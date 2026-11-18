@@ -2,7 +2,7 @@ import { type ButtonInteraction, type ChatInputCommandInteraction, type Interact
 import { TIMER_SECONDS_PER_PLAYER } from '../game/effects.js'
 import { Game, GameError } from '../game/game.js'
 import { COMMAND_NAME } from './commands.js'
-import { BUTTON_PREFIX, STEP_SEPARATOR, type CardChoiceKind, renderCardChoice, renderHandRanking, renderHoleCards, renderInfo, renderTable } from './render.js'
+import { BUTTON_PREFIX, STEP_SEPARATOR, type CardChoiceKind, type PlayerChoiceKind, renderCardChoice, renderHandRanking, renderHoleCards, renderInfo, renderPlayerChoice, renderTable } from './render.js'
 
 // Une manche = 2 messages dans le salon : les infos fixes de la manche (règles, n° de manche, score, bonus / malus)
 // et la table juste en dessous, modifiée sur place à chaque clic. Chaque nouvelle manche reposte les 2.
@@ -151,6 +151,9 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
     case 'reveal':
       await handleCardChoice(interaction, session, action, arg)
       return
+    case 'compass':
+      await handlePlayerChoice(interaction, session, action, arg)
+      return
     case 'spyglass':
       game.useSpyglass(userId)
       await updateTable(interaction, session)
@@ -216,6 +219,28 @@ async function handleCardChoice(interaction: ButtonInteraction, session: TableSe
   await editTable(session)
   if (kind === 'swap')
     await refreshCardViews(session)
+}
+
+// Bonus Boussole / Espion, en 2 clics : le bouton de la table ouvre un choix caché, puis on choisit le joueur
+async function handlePlayerChoice(interaction: ButtonInteraction, session: TableSession, kind: PlayerChoiceKind, targetId: string | undefined): Promise<void> {
+  const { game } = session
+  const player = game.requirePlayer(interaction.user.id)
+
+  if (targetId === undefined) {
+    await interaction.reply({ ...renderPlayerChoice(kind, game.compassTargets()), flags: MessageFlags.Ephemeral })
+    return
+  }
+
+  try {
+    game.useCompass(player.id, targetId)
+  } catch (error) {
+    if (!(error instanceof GameError) || error.shown)
+      throw error
+  }
+  // le choix ne sert plus (aussi quand quelqu'un a pris le bonus entre-temps) : on le retire, la réponse est sur la table
+  await interaction.deferUpdate()
+  await interaction.deleteReply()
+  await editTable(session)
 }
 
 // La table sur laquelle on vient de cliquer : on la modifie et on retient ce message
