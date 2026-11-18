@@ -208,7 +208,7 @@ export class Game {
   }
 
   advance(): void {
-    const next = NEXT_PHASE[this.phase]
+    let next = NEXT_PHASE[this.phase]
     if (!next)
       throw new GameError('Pas de tour à passer en ce moment.')
     if (!this.allPositioned)
@@ -220,6 +220,9 @@ export class Game {
       player.position = null
       player.locked = false
     }
+    // malus "Pas de turn" : on saute direct à la river, ses 2 cartes sortent ensemble
+    if (next === 'turn' && this.hasEffect('noTurn'))
+      next = 'river'
     this.phase = next
     this.step++
     this.board.push(...this.draw(BOARD_SIZE[next] - this.board.length))

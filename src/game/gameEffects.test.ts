@@ -123,6 +123,30 @@ describe('Game avec bonus / malus', () => {
     expect(steps[2]).toBe(steps[3])
   })
 
+  it('advance_MalusPasDeTurn_PasseDuFlopALaRiver', () => {
+    startWith('noTurn')
+    playRound(1, 2)
+
+    playRound(1, 2)
+
+    expect(game.phase).toBe('river')
+    expect(game.board).toHaveLength(5)
+    playRound(1, 2)
+    expect(game.phase).toBe('showdown')
+    expect(game.findPlayer('alice')?.history.map(round => round.phase)).toEqual(['preflop', 'flop', 'river'])
+  })
+
+  it('advance_MalusPasDeTurnEtPasDePreflop_SeulementFlopEtRiver', () => {
+    startWith('noPreflop', 'noTurn')
+
+    playRound(1, 2)
+    playRound(1, 2)
+
+    expect(game.phase).toBe('showdown')
+    expect(game.findPlayer('alice')?.history.map(round => round.phase)).toEqual(['flop', 'river'])
+    expect(game.result?.success).toBe(true)
+  })
+
   it('isFlopCardHidden_MalusCarteCachee_CacheeAuFlopEtAuTurnPuisRetourneeALaRiver', () => {
     startWith('hiddenFlopCard')
 
