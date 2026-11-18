@@ -130,7 +130,7 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
       session.tableMessage = await requireChannel(interaction).send(table(session))
       return
     case 'cards':
-      await interaction.reply({ ...renderHoleCards(game.requirePlayer(userId)), flags: MessageFlags.Ephemeral })
+      await interaction.reply({ ...renderHoleCards(game, game.requirePlayer(userId)), flags: MessageFlags.Ephemeral })
       session.cardViews.set(userId, interaction)
       return
     case 'pos':
@@ -207,7 +207,7 @@ async function handleCardChoice(interaction: ButtonInteraction, session: TableSe
 
   if (cardIndex === undefined) {
     game.requireCardBonus(kind)
-    await interaction.reply({ ...renderCardChoice(player, kind), flags: MessageFlags.Ephemeral })
+    await interaction.reply({ ...renderCardChoice(game, player, kind), flags: MessageFlags.Ephemeral })
     return
   }
 
@@ -224,7 +224,7 @@ async function handleCardChoice(interaction: ButtonInteraction, session: TableSe
     await interaction.deleteReply()
     return
   }
-  await interaction.update(renderHoleCards(player))
+  await interaction.update(renderHoleCards(game, player))
   await editTable(session)
   if (kind === 'swap')
     await refreshCardViews(session)
@@ -356,7 +356,7 @@ async function refreshCardViews(session: TableSession): Promise<void> {
     if (!player)
       return
     try {
-      await cardsClick.editReply(renderHoleCards(player))
+      await cardsClick.editReply(renderHoleCards(game, player))
     } catch {
       cardViews.delete(playerId)
     }

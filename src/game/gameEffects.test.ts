@@ -239,6 +239,26 @@ describe('Game avec bonus / malus', () => {
     expect(game.bonusUsage.spied?.card).toEqual(parseCards('9h')[0])
   })
 
+  it('isHoleCardHidden_MalusMainDeBorgne_UneCarteCacheeJusquAuResultat', () => {
+    startWith('oneEyed')
+
+    // hasard figé à 0 : la 1re carte d'Alice
+    expect(game.oneEyed).toEqual({ playerId: 'alice', cardIndex: 0 })
+    expect(game.isHoleCardHidden('alice', 0)).toBe(true)
+    expect(game.isHoleCardHidden('alice', 1)).toBe(false)
+    expect(game.isHoleCardHidden('bob', 0)).toBe(false)
+
+    for (let i = 0; i < 3; i++) {
+      playRound(1, 2)
+    }
+    expect(game.phase).toBe('river')
+    expect(game.isHoleCardHidden('alice', 0)).toBe(true)
+
+    playRound(1, 2)
+
+    expect(game.isHoleCardHidden('alice', 0)).toBe(false)
+  })
+
   it('isFlopCardHidden_MalusCarteCachee_CacheeAuFlopEtAuTurnPuisRetourneeALaRiver', () => {
     startWith('hiddenFlopCard')
 

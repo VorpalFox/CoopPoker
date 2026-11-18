@@ -80,6 +80,7 @@ export class Game {
   bonusUsage: BonusUsage = { ...NO_BONUS_USED }
   riverSwap: RiverSwap | null = null
   ghostHole: Card[] | null = null // malus "Joueur fantôme"
+  oneEyed: { playerId: string, cardIndex: number } | null = null // malus "Main de borgne"
   step = 0 // change à chaque nouvelle manche et à chaque tour : un clic fait sur une étape passée est ignoré
   private lastSuccess: boolean | null = null
   private deck: Card[] = []
@@ -118,6 +119,11 @@ export class Game {
 
   hasEffect(id: EffectId): boolean {
     return this.effects.includes(id)
+  }
+
+  // Malus "Main de borgne" : cette carte reste cachée à son joueur jusqu'au résultat
+  isHoleCardHidden(playerId: string, cardIndex: number): boolean {
+    return this.oneEyed?.playerId === playerId && this.oneEyed.cardIndex === cardIndex && this.isBetting
   }
 
   // Malus "Carte cachée" : la 1re carte du flop reste face cachée au flop et au turn, elle se retourne à la river
@@ -183,6 +189,7 @@ export class Game {
       player.history = []
     }
     this.ghostHole = this.hasEffect('ghost') ? this.draw(2) : null
+    this.oneEyed = this.hasEffect('oneEyed') ? this.drawOneEyed() : null
 
     // malus "Pas de pré-flop" : on attaque directement au flop
     this.phase = this.hasEffect('noPreflop') ? 'flop' : 'preflop'
@@ -488,6 +495,12 @@ export class Game {
   // Toutes les cartes en main, fantôme compris
   private get holeCards(): Card[] {
     return this.seats.flatMap(seat => seat.hole)
+  }
+
+  // Malus "Main de borgne" : un joueur et une de ses cartes au hasard
+  private drawOneEyed(): { playerId: string, cardIndex: number } {
+    const player = this.players[Math.floor(this.random() * this.players.length)]
+    return { playerId: player.id, cardIndex: Math.floor(this.random() * 2) }
   }
 
   // Malus "Rivière agitée" : une des 4 cartes d'avant la river (la cachée comprise) est remplacée

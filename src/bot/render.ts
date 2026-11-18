@@ -131,14 +131,18 @@ export function renderHandRanking(): BaseMessageOptions {
 }
 
 // Cartes d'un joueur, en message caché (bouton "Mes cartes")
-export function renderHoleCards(player: Player): BaseMessageOptions {
-  return { content: `Tes cartes :\n${asciiCards(player.hole)}`, components: [] }
+export function renderHoleCards(game: Game, player: Player): BaseMessageOptions {
+  // malus "Main de borgne" : la carte cachée est montrée de dos
+  const slots: BoardSlot[] = player.hole.map((card, i) => (game.isHoleCardHidden(player.id, i) ? 'hidden' : card))
+  const oneEyed = slots.includes('hidden') ? '\n☝️ Main de borgne : ta carte cachée se retourne au résultat.' : ''
+  return { content: `Tes cartes :\n${asciiCards(slots)}${oneEyed}`, components: [] }
 }
 
 // Réponse privée des bonus Échange / Révélation : on choisit la carte
-export function renderCardChoice(player: Player, kind: CardChoiceKind): BaseMessageOptions {
+export function renderCardChoice(game: Game, player: Player, kind: CardChoiceKind): BaseMessageOptions {
   const question = kind === 'swap' ? '🔄 Quelle carte veux-tu échanger ?' : '👁️ Quelle carte veux-tu montrer à la table ?'
-  const buttons = player.hole.map((card, i) => button(CARD_CHOICE_ID(kind, i), formatCard(card), ButtonStyle.Primary))
+  const label = (card: Card, i: number) => (game.isHoleCardHidden(player.id, i) ? '🂠 Carte cachée' : formatCard(card))
+  const buttons = player.hole.map((card, i) => button(CARD_CHOICE_ID(kind, i), label(card, i), ButtonStyle.Primary))
   return { content: question, components: [row(...buttons)] }
 }
 
@@ -198,7 +202,7 @@ function bettingEmbed(game: Game, withFooter: boolean, deadline: number | null):
   const embed = new EmbedBuilder()
     .setColor(COLORS.betting)
     .setTitle(`🃏 ${PHASE_LABELS[game.phase]}`)
-    .setDescription(`${boardText(game)}${riverSwapText(game)}${timer}`)
+    .setDescription(`${boardText(game)}${oneEyedText(game)}${riverSwapText(game)}${timer}`)
   if (!game.hasEffect('hiddenHistory'))
     addHistory(embed, game)
   addBonusUsage(embed, game)
@@ -312,6 +316,13 @@ function boardText(game: Game): string {
   while (slots.length < BOARD_SLOTS)
     slots.push('empty')
   return asciiCards(slots)
+}
+
+// Malus "Main de borgne" : la table sait qui ne voit qu'une carte
+function oneEyedText(game: Game): string {
+  if (!game.oneEyed)
+    return ''
+  return `\n☝️ ${playerName(game.findPlayer(game.oneEyed.playerId)!)} ne voit qu'une de ses cartes`
 }
 
 // Malus "Rivière agitée" : la carte emportée, annoncée sous le tableau
