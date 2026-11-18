@@ -84,6 +84,23 @@ describe('Game avec bonus / malus', () => {
     expect(game.findPlayer('bob')?.position).toBe(1)
   })
 
+  it('takePosition_MalusPremierVerrouille_LePremierEstBloqueJusquAuTourSuivant', () => {
+    startWith('firstLocked', 'noLock')
+    game.takePosition('alice', 1)
+    game.takePosition('bob', 2)
+
+    expect(game.findPlayer('alice')?.locked).toBe(true)
+    expect(game.findPlayer('bob')?.locked).toBe(false)
+    expect(() => game.takePosition('bob', 1)).toThrow(GameError)
+    expect(() => game.takePosition('alice', 1)).toThrow(GameError)
+
+    game.advance()
+    game.takePosition('bob', 1)
+
+    expect(game.findPlayer('bob')?.locked).toBe(true)
+    expect(game.findPlayer('alice')?.locked).toBe(false)
+  })
+
   it('start_MalusPasDePreflop_CommenceAuFlop', () => {
     startWith('noPreflop')
 

@@ -180,9 +180,15 @@ export class Game {
       throw new GameError(`La position ${position} est bloquée par ${holder.name}.`)
     if (holder && this.hasEffect('noSteal'))
       throw new GameError(`Malus « Pas de vol » : ${holder.name} doit d'abord rendre la position ${position}.`)
+
+    // malus "Premier verrouillé" : le 1er jeton du tour est bloqué d'office (même avec "Pas de blocage").
+    // Comme il ne peut plus bouger, personne n'est placé seulement avant ce 1er jeton.
+    const isFirstOfRound = this.players.every(other => other.position === null)
     if (holder)
       holder.position = null
     player.position = position
+    if (isFirstOfRound && this.hasEffect('firstLocked'))
+      player.locked = true
     return holder
   }
 
