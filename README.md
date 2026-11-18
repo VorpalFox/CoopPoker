@@ -51,6 +51,7 @@ Le même effet n'est jamais actif deux fois. Si tous ceux d'une sorte le sont d�
 | ✔️ | Vérification | Une fois, à partir du flop, quand tout le monde est placé, le bot dit si le classement actuel serait gagnant avec le tableau du moment. |
 | 🍀 | Seconde chance | À la fin, une seule inversion entre deux joueurs voisins est pardonnée. |
 | ⛰️ | Montagne | Une fois, le bot annonce la plus haute carte en main, valeur seulement, sans dire qui l'a. |
+| ⚓ | Fond de cale | Une fois, le bot annonce la plus basse carte en main, valeur seulement, sans dire qui l'a. |
 
 Les bonus à utiliser apparaissent comme boutons sous la table, et ce qu'ils ont révélé reste affiché sur la table jusqu'à la fin de la manche.
 

@@ -175,6 +175,15 @@ describe('Game avec bonus / malus', () => {
     expect(() => game.useMountain('alice')).toThrow(GameError)
   })
 
+  it('useBilge_BonusFondDeCale_AnnonceLaPlusBasseCarteEnMain', () => {
+    startWith('bilge')
+
+    game.useBilge('bob')
+
+    expect(game.bonusUsage.lowestRank).toBe(2)
+    expect(() => game.useBilge('alice')).toThrow(GameError)
+  })
+
   it('finishRound_SecondeChanceInversionVoisins_Gagne', () => {
     startWith('secondChance')
     for (let i = 0; i < 4; i++) {

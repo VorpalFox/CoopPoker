@@ -22,6 +22,7 @@ export const BUTTON_IDS = {
   hint: `${BUTTON_PREFIX}:hint`,
   check: `${BUTTON_PREFIX}:check`,
   mountain: `${BUTTON_PREFIX}:mountain`,
+  bilge: `${BUTTON_PREFIX}:bilge`,
 }
 export const POSITION_BUTTON_ID = (position: number) => `${BUTTON_PREFIX}:pos:${position}`
 // Choix de la carte à échanger / montrer (cp:swap:0, cp:reveal:1...)
@@ -215,7 +216,7 @@ function addHistory(embed: EmbedBuilder, game: Game): void {
 }
 
 function addBonusUsage(embed: EmbedBuilder, game: Game): void {
-  const { swappedBy, revealed, hint, check, highestRank } = game.bonusUsage
+  const { swappedBy, revealed, hint, check, highestRank, lowestRank } = game.bonusUsage
   const nameOf = (playerId: string) => escapeMarkdown(game.findPlayer(playerId)?.name ?? '?')
 
   const lines: string[] = []
@@ -229,6 +230,8 @@ function addBonusUsage(embed: EmbedBuilder, game: Game): void {
     lines.push(`✔️ Au ${PHASE_LABELS[check.phase].toLowerCase()}, le classement vérifié ${check.success ? 'était **bon** ✅' : 'était **faux** ❌'}`)
   if (highestRank)
     lines.push(`⛰️ La plus haute carte en main : **${rankName(highestRank)}**`)
+  if (lowestRank)
+    lines.push(`⚓ La plus basse carte en main : **${rankName(lowestRank)}**`)
   if (lines.length > 0)
     embed.addFields({ name: '😇 Bonus utilisés', value: lines.join('\n') })
 }
@@ -314,7 +317,7 @@ function tableButtons(game: Game): ActionRowBuilder<ButtonBuilder>[] {
 
 // Un bouton par bonus actif pas encore utilisé
 function bonusButtons(game: Game): ButtonBuilder[] {
-  const { swappedBy, revealed, hint, check, highestRank } = game.bonusUsage
+  const { swappedBy, revealed, hint, check, highestRank, lowestRank } = game.bonusUsage
   const beforeFlop = game.board.length < 3
   const buttons: ButtonBuilder[] = []
   if (game.hasEffect('swap') && !swappedBy)
@@ -327,6 +330,8 @@ function bonusButtons(game: Game): ButtonBuilder[] {
     buttons.push(button(BUTTON_IDS.check, '✔️ Vérifier le classement', ButtonStyle.Primary).setDisabled(beforeFlop || !game.allPositioned))
   if (game.hasEffect('mountain') && !highestRank)
     buttons.push(button(BUTTON_IDS.mountain, '⛰️ Plus haute carte', ButtonStyle.Primary))
+  if (game.hasEffect('bilge') && !lowestRank)
+    buttons.push(button(BUTTON_IDS.bilge, '⚓ Plus basse carte', ButtonStyle.Primary))
   return buttons
 }
 

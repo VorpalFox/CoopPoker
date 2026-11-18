@@ -44,9 +44,10 @@ export interface BonusUsage {
   hint: { phase: BettingPhase, category: HandCategory } | null
   check: { phase: BettingPhase, success: boolean } | null
   highestRank: number | null
+  lowestRank: number | null
 }
 
-const NO_BONUS_USED: BonusUsage = { swappedBy: null, revealed: null, hint: null, check: null, highestRank: null }
+const NO_BONUS_USED: BonusUsage = { swappedBy: null, revealed: null, hint: null, check: null, highestRank: null, lowestRank: null }
 
 export class Game {
   phase: Phase = 'lobby'
@@ -292,6 +293,16 @@ export class Game {
       throw new GameError('La montagne a déjà été utilisée cette manche.')
 
     this.bonusUsage.highestRank = Math.max(...this.holeCards.map(card => card.rank))
+  }
+
+  // Bonus "Fond de cale" : la plus basse carte en main, sans dire qui l'a
+  useBilge(playerId: string): void {
+    this.requireBonus('bilge')
+    this.requirePlayer(playerId)
+    if (this.bonusUsage.lowestRank)
+      throw new GameError('Le fond de cale a déjà été utilisé cette manche.')
+
+    this.bonusUsage.lowestRank = Math.min(...this.holeCards.map(card => card.rank))
   }
 
   // Toutes les cartes en main
