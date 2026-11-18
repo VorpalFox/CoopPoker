@@ -151,8 +151,8 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
     case 'reveal':
       await handleCardChoice(interaction, session, action, arg)
       return
-    case 'hint':
-      game.useHint(userId)
+    case 'spyglass':
+      game.useSpyglass(userId)
       await updateTable(interaction, session)
       return
     case 'check':

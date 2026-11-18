@@ -19,7 +19,7 @@ export const BUTTON_IDS = {
   help: `${BUTTON_PREFIX}:help`,
   swap: `${BUTTON_PREFIX}:swap`,
   reveal: `${BUTTON_PREFIX}:reveal`,
-  hint: `${BUTTON_PREFIX}:hint`,
+  spyglass: `${BUTTON_PREFIX}:spyglass`,
   check: `${BUTTON_PREFIX}:check`,
   mountain: `${BUTTON_PREFIX}:mountain`,
   bilge: `${BUTTON_PREFIX}:bilge`,
@@ -216,7 +216,7 @@ function addHistory(embed: EmbedBuilder, game: Game): void {
 }
 
 function addBonusUsage(embed: EmbedBuilder, game: Game): void {
-  const { swappedBy, revealed, hint, check, highestRank, lowestRank } = game.bonusUsage
+  const { swappedBy, revealed, spyglass, check, highestRank, lowestRank } = game.bonusUsage
   const nameOf = (playerId: string) => escapeMarkdown(game.findPlayer(playerId)?.name ?? '?')
 
   const lines: string[] = []
@@ -224,8 +224,8 @@ function addBonusUsage(embed: EmbedBuilder, game: Game): void {
     lines.push(`🔄 ${nameOf(swappedBy)} a échangé une carte`)
   if (revealed)
     lines.push(`👁️ ${nameOf(revealed.playerId)} montre **${formatCard(revealed.card)}**`)
-  if (hint)
-    lines.push(`💡 Au ${PHASE_LABELS[hint.phase].toLowerCase()}, la meilleure main est : **${HAND_NAMES[hint.category]}**`)
+  if (spyglass)
+    lines.push(`🔭 Au ${PHASE_LABELS[spyglass.phase].toLowerCase()}, la plus haute combinaison est : **${HAND_NAMES[spyglass.category]}**`)
   if (check)
     lines.push(`✔️ Au ${PHASE_LABELS[check.phase].toLowerCase()}, le classement vérifié ${check.success ? 'était **bon** ✅' : 'était **faux** ❌'}`)
   if (highestRank)
@@ -317,15 +317,15 @@ function tableButtons(game: Game): ActionRowBuilder<ButtonBuilder>[] {
 
 // Un bouton par bonus actif pas encore utilisé
 function bonusButtons(game: Game): ButtonBuilder[] {
-  const { swappedBy, revealed, hint, check, highestRank, lowestRank } = game.bonusUsage
+  const { swappedBy, revealed, spyglass, check, highestRank, lowestRank } = game.bonusUsage
   const beforeFlop = game.board.length < 3
   const buttons: ButtonBuilder[] = []
   if (game.hasEffect('swap') && !swappedBy)
     buttons.push(button(BUTTON_IDS.swap, '🔄 Échanger une carte', ButtonStyle.Primary))
   if (game.hasEffect('reveal') && !revealed)
     buttons.push(button(BUTTON_IDS.reveal, '👁️ Montrer une carte', ButtonStyle.Primary))
-  if (game.hasEffect('hint') && !hint)
-    buttons.push(button(BUTTON_IDS.hint, '💡 Indice', ButtonStyle.Primary).setDisabled(beforeFlop))
+  if (game.hasEffect('spyglass') && !spyglass)
+    buttons.push(button(BUTTON_IDS.spyglass, '🔭 Longue-vue', ButtonStyle.Primary))
   if (game.hasEffect('check') && !check)
     buttons.push(button(BUTTON_IDS.check, '✔️ Vérifier le classement', ButtonStyle.Primary).setDisabled(beforeFlop || !game.allPositioned))
   if (game.hasEffect('mountain') && !highestRank)

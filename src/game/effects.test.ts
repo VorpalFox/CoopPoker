@@ -6,7 +6,7 @@ const first = () => 0
 
 describe('nextEffects', () => {
   it('nextEffects_SansChaosVictoire_UnSeulMalus', () => {
-    expect(nextEffects(['swap', 'hint'], true, false, first)).toEqual(['noLock'])
+    expect(nextEffects(['swap', 'spyglass'], true, false, first)).toEqual(['noLock'])
   })
 
   it('nextEffects_SansChaosDefaite_UnSeulBonus', () => {
@@ -29,7 +29,7 @@ describe('nextEffects', () => {
   })
 
   it('nextEffects_ChaosVictoireAvecBonus_RetireUnBonusEtAjouteUnMalus', () => {
-    const effects = nextEffects(['hint', 'check'], true, true, first)
+    const effects = nextEffects(['spyglass', 'check'], true, true, first)
 
     expect(effects).toEqual(['check', 'noLock'])
   })

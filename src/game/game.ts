@@ -1,6 +1,6 @@
 import { type Card, createDeck, shuffle } from './cards.js'
 import { type BonusId, type EffectId, nextEffects } from './effects.js'
-import { compareHands, evaluateHand, type HandCategory } from './handEvaluator.js'
+import { type HandCategory, handCategory } from './handEvaluator.js'
 import { evaluateShowdown, isSingleAdjacentSwap, type ShowdownResult } from './showdown.js'
 
 export const MIN_PLAYERS = 2
@@ -41,13 +41,13 @@ export interface Player {
 export interface BonusUsage {
   swappedBy: string | null
   revealed: { playerId: string, card: Card } | null
-  hint: { phase: BettingPhase, category: HandCategory } | null
+  spyglass: { phase: BettingPhase, category: HandCategory } | null
   check: { phase: BettingPhase, success: boolean } | null
   highestRank: number | null
   lowestRank: number | null
 }
 
-const NO_BONUS_USED: BonusUsage = { swappedBy: null, revealed: null, hint: null, check: null, highestRank: null, lowestRank: null }
+const NO_BONUS_USED: BonusUsage = { swappedBy: null, revealed: null, spyglass: null, check: null, highestRank: null, lowestRank: null }
 
 export class Game {
   phase: Phase = 'lobby'
@@ -257,18 +257,15 @@ export class Game {
     this.bonusUsage.revealed = { playerId: player.id, card: player.hole[cardIndex] }
   }
 
-  // Bonus "Indice" : la combinaison de la meilleure main du moment
-  useHint(playerId: string): void {
-    this.requireBonus('hint')
+  // Bonus "Longue-vue" : la plus haute combinaison parmi toutes les mains, avec le tableau du moment
+  useSpyglass(playerId: string): void {
+    this.requireBonus('spyglass')
     this.requirePlayer(playerId)
-    if (this.bonusUsage.hint)
-      throw new GameError('L\'indice a déjà été utilisé cette manche.')
-    this.requireFlop('L\'indice')
+    if (this.bonusUsage.spyglass)
+      throw new GameError('La longue-vue a déjà été utilisée cette manche.')
 
-    const best = this.players
-      .map(player => evaluateHand([...player.hole, ...this.board]))
-      .reduce((a, b) => (compareHands(a, b) >= 0 ? a : b))
-    this.bonusUsage.hint = { phase: this.phase as BettingPhase, category: best.category }
+    const best = Math.max(...this.hands.map(hole => handCategory([...hole, ...this.board])))
+    this.bonusUsage.spyglass = { phase: this.phase as BettingPhase, category: best }
   }
 
   // Bonus "Vérification" : le classement actuel serait-il gagnant avec le tableau du moment ?
@@ -305,9 +302,13 @@ export class Game {
     this.bonusUsage.lowestRank = Math.min(...this.holeCards.map(card => card.rank))
   }
 
-  // Toutes les cartes en main
+  // Les mains de la table
+  private get hands(): Card[][] {
+    return this.players.map(player => player.hole)
+  }
+
   private get holeCards(): Card[] {
-    return this.players.flatMap(player => player.hole)
+    return this.hands.flat()
   }
 
   private finishRound(): void {

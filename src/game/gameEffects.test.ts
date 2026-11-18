@@ -134,18 +134,26 @@ describe('Game avec bonus / malus', () => {
     expect(() => game.revealCard('bob', 0)).toThrow(GameError)
   })
 
-  it('useHint_AvantLeFlop_Refuse', () => {
-    startWith('hint')
-    expect(() => game.useHint('alice')).toThrow(GameError)
+  it('useSpyglass_AuPreflop_PaireEnMain', () => {
+    startWith('spyglass')
+
+    game.useSpyglass('alice')
+
+    expect(game.bonusUsage.spyglass).toEqual({ phase: 'preflop', category: HandCategory.Pair })
+    expect(() => game.useSpyglass('bob')).toThrow(GameError)
   })
 
-  it('useHint_AuFlop_DonneLaMeilleureCombinaison', () => {
-    startWith('hint')
+  it('useSpyglass_AuFlop_PlusHauteCombinaisonAvecLeTableau', () => {
+    // Bob touche le brelan de 7 au flop, mieux que la paire d'as d'Alice
+    game = new Game(() => parseCards('Ah Ad 7c 7s 7h Js 4c Kd 3h'), () => 0)
+    game.join('alice', 'Alice')
+    game.join('bob', 'Bob')
+    startWith('spyglass')
     playRound(1, 2)
 
-    game.useHint('bob')
+    game.useSpyglass('bob')
 
-    expect(game.bonusUsage.hint).toEqual({ phase: 'flop', category: HandCategory.Pair })
+    expect(game.bonusUsage.spyglass).toEqual({ phase: 'flop', category: HandCategory.ThreeOfAKind })
   })
 
   it('useCheck_ClassementBon_DitQueCaPasse', () => {

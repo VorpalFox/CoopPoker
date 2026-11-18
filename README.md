@@ -47,7 +47,7 @@ Le même effet n'est jamais actif deux fois. Si tous ceux d'une sorte le sont d�
 |---|---|---|
 | 🔄 | Échange | Le premier qui clique remplace une de ses deux cartes par une carte du paquet. |
 | 👁️ | Révélation | Le premier qui clique montre une de ses cartes à toute la table. |
-| 💡 | Indice | Une fois, à partir du flop, le bot annonce la combinaison de la meilleure main du moment. |
+| 🔭 | Longue-vue | Une fois, le bot annonce la plus haute combinaison parmi toutes les mains, avec le tableau du moment (au pré-flop : paire ou carte haute). |
 | ✔️ | Vérification | Une fois, à partir du flop, quand tout le monde est placé, le bot dit si le classement actuel serait gagnant avec le tableau du moment. |
 | 🍀 | Seconde chance | À la fin, une seule inversion entre deux joueurs voisins est pardonnée. |
 | ⛰️ | Montagne | Une fois, le bot annonce la plus haute carte en main, valeur seulement, sans dire qui l'a. |

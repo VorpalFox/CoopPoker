@@ -40,6 +40,13 @@ export function evaluateHand(cards: Card[]): EvaluatedHand {
     .reduce((best, hand) => (compareHands(hand, best) > 0 ? hand : best))
 }
 
+// Combinaison de 2 à 7 cartes : sous 5 cartes (pré-flop), il n'y a que la paire ou la carte haute
+export function handCategory(cards: Card[]): HandCategory {
+  if (cards.length >= 5)
+    return evaluateHand(cards).category
+  return new Set(cards.map(card => card.rank)).size < cards.length ? HandCategory.Pair : HandCategory.HighCard
+}
+
 // > 0 si a bat b, 0 si égalité parfaite
 export function compareHands(a: EvaluatedHand, b: EvaluatedHand): number {
   for (let i = 0; i < Math.max(a.score.length, b.score.length); i++) {

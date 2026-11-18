@@ -2,7 +2,7 @@
 // En mode chaos ils s'accumulent : une victoire retire le plus vieux bonus et ajoute un malus, et inversement.
 
 export type MalusId = 'noLock' | 'noPreflop' | 'hiddenHistory' | 'timer' | 'hiddenFlopCard'
-export type BonusId = 'swap' | 'reveal' | 'hint' | 'check' | 'secondChance' | 'mountain' | 'bilge'
+export type BonusId = 'swap' | 'reveal' | 'spyglass' | 'check' | 'secondChance' | 'mountain' | 'bilge'
 export type EffectId = MalusId | BonusId
 export type EffectKind = 'malus' | 'bonus'
 
@@ -23,7 +23,7 @@ export const EFFECTS: Record<EffectId, EffectInfo> = {
   hiddenFlopCard: { kind: 'malus', emoji: '🂠', name: 'Carte cachée', description: 'la 1re carte du flop reste face cachée jusqu\'à la river.' },
   swap: { kind: 'bonus', emoji: '🔄', name: 'Échange', description: 'le premier qui clique remplace une de ses cartes.' },
   reveal: { kind: 'bonus', emoji: '👁️', name: 'Révélation', description: 'le premier qui clique montre une de ses cartes à la table.' },
-  hint: { kind: 'bonus', emoji: '💡', name: 'Indice', description: 'une fois, à partir du flop, le bot annonce la combinaison de la meilleure main du moment.' },
+  spyglass: { kind: 'bonus', emoji: '🔭', name: 'Longue-vue', description: 'une fois, le bot annonce la plus haute combinaison parmi toutes les mains, avec le tableau du moment.' },
   check: { kind: 'bonus', emoji: '✔️', name: 'Vérification', description: 'une fois, à partir du flop, le bot dit si le classement actuel serait gagnant avec le tableau du moment.' },
   secondChance: { kind: 'bonus', emoji: '🍀', name: 'Seconde chance', description: 'à la fin, une seule inversion entre deux joueurs voisins est pardonnée.' },
   mountain: { kind: 'bonus', emoji: '⛰️', name: 'Montagne', description: 'une fois, le bot annonce la plus haute carte en main, valeur seulement, sans dire qui l\'a.' },
