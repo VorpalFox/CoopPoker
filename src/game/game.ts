@@ -47,6 +47,7 @@ export interface BonusUsage {
   lowestRank: number | null
   deadCards: Card[] | null
   compass: { phase: BettingPhase, playerId: string, position: number, correct: boolean } | null
+  spied: { byId: string, targetId: string, card: Card } | null
 }
 
 // Malus "Rivière agitée" : la carte du tableau emportée par la river
@@ -56,7 +57,7 @@ export interface RiverSwap {
   replacement: Card
 }
 
-const NO_BONUS_USED: BonusUsage = { swappedBy: null, revealed: null, spyglass: null, mastermind: null, highestRank: null, lowestRank: null, deadCards: null, compass: null }
+const NO_BONUS_USED: BonusUsage = { swappedBy: null, revealed: null, spyglass: null, mastermind: null, highestRank: null, lowestRank: null, deadCards: null, compass: null, spied: null }
 
 export class Game {
   phase: Phase = 'lobby'
@@ -359,6 +360,26 @@ export class Game {
 
     const { correct } = this.currentShowdown().entries.find(entry => entry.id === target.id)!
     this.bonusUsage.compass = { phase: this.phase as BettingPhase, playerId: target.id, position: target.position, correct }
+  }
+
+  // Bonus "Espion" encore dispo ? Renvoie les joueurs qu'on peut espionner : tous les autres
+  spyTargets(playerId: string): Player[] {
+    this.requireBonus('spy')
+    if (this.bonusUsage.spied)
+      throw new GameError('L\'espion a déjà été utilisé cette manche.')
+    this.requirePlayer(playerId)
+
+    return this.players.filter(player => player.id !== playerId)
+  }
+
+  // Bonus "Espion" : une carte du joueur choisi, tirée au hasard, est montrée à la table
+  useSpy(playerId: string, targetId: string): void {
+    const target = this.spyTargets(playerId).find(other => other.id === targetId)
+    if (!target)
+      throw new GameError('Ce joueur n\'est plus à la table.')
+
+    const card = target.hole[Math.floor(this.random() * target.hole.length)]
+    this.bonusUsage.spied = { byId: playerId, targetId, card }
   }
 
   // Classement avec le tableau du moment et les positions du tour en cours (0 pour qui n'est pas placé)

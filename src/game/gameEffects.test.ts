@@ -330,6 +330,22 @@ describe('Game avec bonus / malus', () => {
     expect(() => game.compassTargets()).toThrow(GameError)
   })
 
+  it('useSpy_BonusEspion_MontreUneCarteDuJoueurChoisi', () => {
+    startWith('spy')
+
+    expect(game.spyTargets('alice').map(player => player.id)).toEqual(['bob'])
+    game.useSpy('alice', 'bob')
+
+    // hasard figé à 0 : la 1re carte de Bob
+    expect(game.bonusUsage.spied).toEqual({ byId: 'alice', targetId: 'bob', card: parseCards('7c')[0] })
+    expect(() => game.useSpy('bob', 'alice')).toThrow(GameError)
+  })
+
+  it('useSpy_SoiMeme_Refuse', () => {
+    startWith('spy')
+    expect(() => game.useSpy('alice', 'alice')).toThrow(GameError)
+  })
+
   it('finishRound_SecondeChanceInversionVoisins_Gagne', () => {
     startWith('secondChance')
     for (let i = 0; i < 4; i++) {

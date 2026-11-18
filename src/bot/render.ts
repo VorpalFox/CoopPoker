@@ -22,6 +22,7 @@ export const BUTTON_IDS = {
   spyglass: `${BUTTON_PREFIX}:spyglass`,
   mastermind: `${BUTTON_PREFIX}:mastermind`,
   compass: `${BUTTON_PREFIX}:compass`,
+  spy: `${BUTTON_PREFIX}:spy`,
   mountain: `${BUTTON_PREFIX}:mountain`,
   bilge: `${BUTTON_PREFIX}:bilge`,
   deadCards: `${BUTTON_PREFIX}:deadCards`,
@@ -33,10 +34,11 @@ export const CARD_CHOICE_ID = (kind: CardChoiceKind, cardIndex: number) => `${BU
 export const PLAYER_CHOICE_ID = (kind: PlayerChoiceKind, playerId: string) => `${BUTTON_PREFIX}:${kind}:${playerId}`
 
 export type CardChoiceKind = 'swap' | 'reveal'
-export type PlayerChoiceKind = 'compass'
+export type PlayerChoiceKind = 'compass' | 'spy'
 
 const PLAYER_CHOICE_QUESTIONS: Record<PlayerChoiceKind, string> = {
   compass: '🧭 Quel joueur veux-tu vérifier ?',
+  spy: '🕵️ Quel joueur veux-tu espionner ?',
 }
 
 const PHASE_LABELS: Record<Phase, string> = {
@@ -231,7 +233,7 @@ function addHistory(embed: EmbedBuilder, game: Game): void {
 }
 
 function addBonusUsage(embed: EmbedBuilder, game: Game): void {
-  const { swappedBy, revealed, spyglass, mastermind, highestRank, lowestRank, deadCards, compass } = game.bonusUsage
+  const { swappedBy, revealed, spyglass, mastermind, highestRank, lowestRank, deadCards, compass, spied } = game.bonusUsage
   const nameOf = (playerId: string) => escapeMarkdown(game.findPlayer(playerId)?.name ?? '?')
 
   const lines: string[] = []
@@ -251,6 +253,8 @@ function addBonusUsage(embed: EmbedBuilder, game: Game): void {
     lines.push(`☠️ Cartes mortes : **${formatCards(deadCards)}**`)
   if (compass)
     lines.push(`🧭 Au ${PHASE_LABELS[compass.phase].toLowerCase()} : ${compass.correct ? '✅' : '❌'} ${nameOf(compass.playerId)} (position ${compass.position}) est **${compass.correct ? 'bien' : 'mal'} placé**`)
+  if (spied)
+    lines.push(`🕵️ ${nameOf(spied.byId)} espionne ${nameOf(spied.targetId)} : **${formatCard(spied.card)}**`)
   if (lines.length > 0)
     embed.addFields({ name: '😇 Bonus utilisés', value: lines.join('\n') })
 }
@@ -345,7 +349,7 @@ function tableButtons(game: Game): ActionRowBuilder<ButtonBuilder>[] {
 
 // Un bouton par bonus actif pas encore utilisé
 function bonusButtons(game: Game): ButtonBuilder[] {
-  const { swappedBy, revealed, spyglass, mastermind, highestRank, lowestRank, deadCards, compass } = game.bonusUsage
+  const { swappedBy, revealed, spyglass, mastermind, highestRank, lowestRank, deadCards, compass, spied } = game.bonusUsage
   const beforeFlop = game.board.length < 3
   const buttons: ButtonBuilder[] = []
   if (game.hasEffect('swap') && !swappedBy)
@@ -364,6 +368,8 @@ function bonusButtons(game: Game): ButtonBuilder[] {
     buttons.push(button(BUTTON_IDS.deadCards, '☠️ Cartes mortes', ButtonStyle.Primary))
   if (game.hasEffect('compass') && !compass)
     buttons.push(button(BUTTON_IDS.compass, '🧭 Boussole', ButtonStyle.Primary).setDisabled(beforeFlop || game.players.every(player => player.position === null)))
+  if (game.hasEffect('spy') && !spied)
+    buttons.push(button(BUTTON_IDS.spy, '🕵️ Espionner', ButtonStyle.Primary))
   return buttons
 }
 

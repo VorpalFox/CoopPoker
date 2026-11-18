@@ -152,6 +152,7 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
       await handleCardChoice(interaction, session, action, arg)
       return
     case 'compass':
+    case 'spy':
       await handlePlayerChoice(interaction, session, action, arg)
       return
     case 'spyglass':
@@ -227,12 +228,16 @@ async function handlePlayerChoice(interaction: ButtonInteraction, session: Table
   const player = game.requirePlayer(interaction.user.id)
 
   if (targetId === undefined) {
-    await interaction.reply({ ...renderPlayerChoice(kind, game.compassTargets()), flags: MessageFlags.Ephemeral })
+    const targets = kind === 'compass' ? game.compassTargets() : game.spyTargets(player.id)
+    await interaction.reply({ ...renderPlayerChoice(kind, targets), flags: MessageFlags.Ephemeral })
     return
   }
 
   try {
-    game.useCompass(player.id, targetId)
+    if (kind === 'compass')
+      game.useCompass(player.id, targetId)
+    else
+      game.useSpy(player.id, targetId)
   } catch (error) {
     if (!(error instanceof GameError) || error.shown)
       throw error
