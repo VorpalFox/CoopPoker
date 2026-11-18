@@ -43,9 +43,10 @@ export interface BonusUsage {
   revealed: { playerId: string, card: Card } | null
   hint: { phase: BettingPhase, category: HandCategory } | null
   check: { phase: BettingPhase, success: boolean } | null
+  highestRank: number | null
 }
 
-const NO_BONUS_USED: BonusUsage = { swappedBy: null, revealed: null, hint: null, check: null }
+const NO_BONUS_USED: BonusUsage = { swappedBy: null, revealed: null, hint: null, check: null, highestRank: null }
 
 export class Game {
   phase: Phase = 'lobby'
@@ -281,6 +282,21 @@ export class Game {
 
     const current = this.players.map(player => ({ ...player, position: player.position! }))
     this.bonusUsage.check = { phase: this.phase as BettingPhase, success: evaluateShowdown(current, this.board).success }
+  }
+
+  // Bonus "Montagne" : la plus haute carte en main, sans dire qui l'a
+  useMountain(playerId: string): void {
+    this.requireBonus('mountain')
+    this.requirePlayer(playerId)
+    if (this.bonusUsage.highestRank)
+      throw new GameError('La montagne a déjà été utilisée cette manche.')
+
+    this.bonusUsage.highestRank = Math.max(...this.holeCards.map(card => card.rank))
+  }
+
+  // Toutes les cartes en main
+  private get holeCards(): Card[] {
+    return this.players.flatMap(player => player.hole)
   }
 
   private finishRound(): void {

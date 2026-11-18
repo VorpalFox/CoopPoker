@@ -166,6 +166,15 @@ describe('Game avec bonus / malus', () => {
     expect(() => game.useCheck('alice')).toThrow(GameError)
   })
 
+  it('useMountain_BonusMontagne_AnnonceLaPlusHauteCarteEnMain', () => {
+    startWith('mountain')
+
+    game.useMountain('bob')
+
+    expect(game.bonusUsage.highestRank).toBe(14)
+    expect(() => game.useMountain('alice')).toThrow(GameError)
+  })
+
   it('finishRound_SecondeChanceInversionVoisins_Gagne', () => {
     startWith('secondChance')
     for (let i = 0; i < 4; i++) {

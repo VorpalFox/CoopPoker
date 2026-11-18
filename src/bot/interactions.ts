@@ -159,6 +159,10 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
       game.useCheck(userId)
       await updateTable(interaction, session)
       return
+    case 'mountain':
+      game.useMountain(userId)
+      await updateTable(interaction, session)
+      return
     case 'replay': {
       game.requirePlayer(userId)
       // le résultat de la manche finie reste dans le salon (sans boutons) pour pouvoir remonter l'historique,

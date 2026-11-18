@@ -11,6 +11,7 @@ const SUIT_TEXT: Record<Suit, string> = { s: '♠', h: '♥', d: '♦', c: '♣'
 // U+FE0F force l'affichage en émoji couleur (♥️ ♦️ rouges), sinon Discord choisit selon le contexte
 const SUIT_SYMBOLS: Record<Suit, string> = { s: '♠️', h: '♥️', d: '♦️', c: '♣️' }
 const RANK_LABELS: Record<number, string> = { 11: 'J', 12: 'Q', 13: 'K', 14: 'A' }
+const RANK_NAMES: Record<number, string> = { 11: 'Valet', 12: 'Dame', 13: 'Roi', 14: 'As' }
 const RANK_CHARS: Record<string, number> = { T: 10, J: 11, Q: 12, K: 13, A: 14 }
 
 export function createDeck(): Card[] {
@@ -29,6 +30,11 @@ export function shuffle<T>(items: T[], random: () => number = Math.random): T[] 
 
 export function rankLabel(rank: number): string {
   return RANK_LABELS[rank] ?? String(rank)
+}
+
+// En toutes lettres, pour les annonces du bot
+export function rankName(rank: number): string {
+  return RANK_NAMES[rank] ?? String(rank)
 }
 
 // Symbole simple, d'un caractère de large (pour les blocs de code, où l'émoji décalerait les colonnes)

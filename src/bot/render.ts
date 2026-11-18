@@ -1,5 +1,5 @@
 import { ActionRowBuilder, type BaseMessageOptions, ButtonBuilder, ButtonStyle, EmbedBuilder, escapeMarkdown } from 'discord.js'
-import { type Card, formatCard, formatCards, isRed, rankLabel, suitText } from '../game/cards.js'
+import { type Card, formatCard, formatCards, isRed, rankLabel, rankName, suitText } from '../game/cards.js'
 import { EFFECTS, type EffectId, type EffectKind } from '../game/effects.js'
 import { type Game, MAX_PLAYERS, MIN_PLAYERS, type Phase, type Player } from '../game/game.js'
 import { HAND_NAMES } from '../game/handEvaluator.js'
@@ -21,6 +21,7 @@ export const BUTTON_IDS = {
   reveal: `${BUTTON_PREFIX}:reveal`,
   hint: `${BUTTON_PREFIX}:hint`,
   check: `${BUTTON_PREFIX}:check`,
+  mountain: `${BUTTON_PREFIX}:mountain`,
 }
 export const POSITION_BUTTON_ID = (position: number) => `${BUTTON_PREFIX}:pos:${position}`
 // Choix de la carte à échanger / montrer (cp:swap:0, cp:reveal:1...)
@@ -214,7 +215,7 @@ function addHistory(embed: EmbedBuilder, game: Game): void {
 }
 
 function addBonusUsage(embed: EmbedBuilder, game: Game): void {
-  const { swappedBy, revealed, hint, check } = game.bonusUsage
+  const { swappedBy, revealed, hint, check, highestRank } = game.bonusUsage
   const nameOf = (playerId: string) => escapeMarkdown(game.findPlayer(playerId)?.name ?? '?')
 
   const lines: string[] = []
@@ -226,6 +227,8 @@ function addBonusUsage(embed: EmbedBuilder, game: Game): void {
     lines.push(`💡 Au ${PHASE_LABELS[hint.phase].toLowerCase()}, la meilleure main est : **${HAND_NAMES[hint.category]}**`)
   if (check)
     lines.push(`✔️ Au ${PHASE_LABELS[check.phase].toLowerCase()}, le classement vérifié ${check.success ? 'était **bon** ✅' : 'était **faux** ❌'}`)
+  if (highestRank)
+    lines.push(`⛰️ La plus haute carte en main : **${rankName(highestRank)}**`)
   if (lines.length > 0)
     embed.addFields({ name: '😇 Bonus utilisés', value: lines.join('\n') })
 }
@@ -311,7 +314,7 @@ function tableButtons(game: Game): ActionRowBuilder<ButtonBuilder>[] {
 
 // Un bouton par bonus actif pas encore utilisé
 function bonusButtons(game: Game): ButtonBuilder[] {
-  const { swappedBy, revealed, hint, check } = game.bonusUsage
+  const { swappedBy, revealed, hint, check, highestRank } = game.bonusUsage
   const beforeFlop = game.board.length < 3
   const buttons: ButtonBuilder[] = []
   if (game.hasEffect('swap') && !swappedBy)
@@ -322,6 +325,8 @@ function bonusButtons(game: Game): ButtonBuilder[] {
     buttons.push(button(BUTTON_IDS.hint, '💡 Indice', ButtonStyle.Primary).setDisabled(beforeFlop))
   if (game.hasEffect('check') && !check)
     buttons.push(button(BUTTON_IDS.check, '✔️ Vérifier le classement', ButtonStyle.Primary).setDisabled(beforeFlop || !game.allPositioned))
+  if (game.hasEffect('mountain') && !highestRank)
+    buttons.push(button(BUTTON_IDS.mountain, '⛰️ Plus haute carte', ButtonStyle.Primary))
   return buttons
 }
 
