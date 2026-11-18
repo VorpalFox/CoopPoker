@@ -68,7 +68,7 @@ export interface RiverSwap {
 
 // Malus "Main haute / basse instable" : la main remplacée quand la turn tombe
 export interface Reshuffle {
-  effect: 'unstableHigh'
+  effect: 'unstableHigh' | 'unstableLow'
   phase: BettingPhase // le tour où c'est arrivé
   playerId: string
   discarded: Card[]
@@ -516,19 +516,21 @@ export class Game {
     return { playerId: player.id, cardIndex: Math.floor(this.random() * 2) }
   }
 
-  // Malus "Main haute instable" : si un habillé est sorti quand la turn tombe, le 1er du flop reçoit une nouvelle main.
-  // La carte cachée ne compte pas, sinon l'annonce dirait si c'en est un.
+  // Malus "Main haute / basse instable" : quand la turn tombe, s'il y a un habillé au tableau le 1er du flop
+  // reçoit une nouvelle main, sinon c'est le dernier. La carte cachée ne compte pas, sinon l'annonce dirait si c'en est un.
   private shakeHand(): void {
     const visible = this.board.filter((_, i) => i !== 0 || !this.isFlopCardHidden)
     const faceCardOut = visible.some(card => card.rank >= 11 && card.rank <= 13)
-    if (!faceCardOut || !this.hasEffect('unstableHigh'))
+    const effect = faceCardOut ? 'unstableHigh' : 'unstableLow'
+    if (!this.hasEffect(effect))
       return
 
+    // le dernier joueur placé, même si le fantôme est derrière lui
     const byFlopPosition = [...this.players].sort((a, b) => a.history.at(-1)!.position - b.history.at(-1)!.position)
-    const player = byFlopPosition[0]
+    const player = faceCardOut ? byFlopPosition[0] : byFlopPosition.at(-1)!
     const discarded = player.hole
     player.hole = this.draw(2)
-    this.reshuffle = { effect: 'unstableHigh', phase: this.phase as BettingPhase, playerId: player.id, discarded }
+    this.reshuffle = { effect, phase: this.phase as BettingPhase, playerId: player.id, discarded }
   }
 
   // Malus "Rivière agitée" : une des 4 cartes d'avant la river (la cachée comprise) est remplacée

@@ -294,6 +294,38 @@ describe('Game avec bonus / malus', () => {
     expect(game.reshuffle).toBeNull()
   })
 
+  it('advance_MalusMainBasseInstableSansHabille_LeDernierDuFlopRecoitUneNouvelleMain', () => {
+    // flop 9h 5s 4c, turn 8d : aucun habillé
+    game = new Game(() => parseCards('Ah Ad 7c 2s 9h 5s 4c 8d 3h Qs Qd'), () => 0)
+    game.join('alice', 'Alice')
+    game.join('bob', 'Bob')
+    startWith('unstableLow', 'noPreflop')
+
+    playRound(1, 2)
+
+    expect(game.reshuffle).toEqual({ effect: 'unstableLow', phase: 'turn', playerId: 'bob', discarded: parseCards('7c 2s') })
+    expect(game.findPlayer('bob')?.hole).toEqual(parseCards('3h Qs'))
+  })
+
+  it('advance_MalusMainBasseInstableAvecHabille_RienNeChange', () => {
+    startWith('unstableLow', 'noPreflop')
+
+    playRound(1, 2)
+
+    expect(game.reshuffle).toBeNull()
+  })
+
+  it('advance_MalusMainBasseInstableAvecFantomeDernier_CEstLeDernierJoueur', () => {
+    game = new Game(() => parseCards('Ah Ad 7c 2s Kh Kc 9h 5s 4c 8d 3h Qs Qd'), () => 0)
+    game.join('alice', 'Alice')
+    game.join('bob', 'Bob')
+    startWith('unstableLow', 'noPreflop', 'ghost')
+
+    playRound(2, 1)
+
+    expect(game.reshuffle?.playerId).toBe('alice')
+  })
+
   it('isFlopCardHidden_MalusCarteCachee_CacheeAuFlopEtAuTurnPuisRetourneeALaRiver', () => {
     startWith('hiddenFlopCard')
 

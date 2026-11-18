@@ -42,6 +42,6 @@ describe('nextEffects', () => {
 
   it('nextEffects_Hasard_TireParmiLesCandidats', () => {
     // 0.99 → le dernier malus de la liste
-    expect(nextEffects([], true, false, () => 0.99)).toEqual(['unstableHigh'])
+    expect(nextEffects([], true, false, () => 0.99)).toEqual(['unstableLow'])
   })
 })

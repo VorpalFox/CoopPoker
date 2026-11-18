@@ -47,6 +47,7 @@ Le même effet n'est jamais actif deux fois. Si tous ceux d'une sorte le sont d�
 | ⬆️ | Tête verrouillée | Qui prend la position 1 y est bloqué jusqu'au tour suivant, comme avec 🔒. Si c'est aussi le 1er jeton du tour avec 🥇 Premier verrouillé, ce dernier est consommé quand même. |
 | ⬇️ | Queue verrouillée | Pareil pour la dernière position (n+1 avec 👻 Joueur fantôme). Cumulable avec ⬆️ Tête verrouillée. |
 | 🔺 | Main haute instable | Si au moins un habillé (valet, dame, roi) est sorti au tableau quand la turn tombe, le 1er du classement du flop reçoit 2 nouvelles cartes. Ses anciennes cartes sont défaussées et montrées à la table. La carte cachée de 🂠 Carte cachée ne compte pas. |
+| 🔻 | Main basse instable | L'inverse : si aucun habillé n'est sorti au tableau quand la turn tombe, c'est le dernier joueur du classement du flop qui reçoit 2 nouvelles cartes, les anciennes étant montrées à la table. |
 | ☝️ | Main de borgne | Un joueur tiré au hasard ne voit qu'une de ses 2 cartes (de dos dans 🂠 Mes cartes) de toute la manche : elle n'est montrée qu'au résultat. La table sait qui c'est. |
 | 🥇 | Premier verrouillé | À chaque tour, le premier qui prend une position est bloqué dessus jusqu'au tour suivant, comme avec 🔒. Marche aussi avec 🔓 Pas de blocage, qui n'interdit que les blocages volontaires. |
 

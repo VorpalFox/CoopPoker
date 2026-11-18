@@ -325,13 +325,14 @@ function oneEyedText(game: Game): string {
   return `\n☝️ ${playerName(game.findPlayer(game.oneEyed.playerId)!)} ne voit qu'une de ses cartes`
 }
 
-// Malus "Main haute instable" : la main défaussée, annoncée sous le tableau
+// Malus "Main haute / basse instable" : la main défaussée, annoncée sous le tableau
 function reshuffleText(game: Game): string {
   if (!game.reshuffle)
     return ''
   const { effect, playerId, discarded } = game.reshuffle
   const name = playerName(game.findPlayer(playerId)!)
-  return `\n${EFFECTS[effect].emoji} Un habillé est sorti : **${name}** (1er au flop) défausse **${formatCards(discarded)}** et reçoit une nouvelle main`
+  const why = effect === 'unstableHigh' ? `Un habillé est sorti : **${name}** (1er au flop)` : `Aucun habillé sorti : **${name}** (dernier au flop)`
+  return `\n${EFFECTS[effect].emoji} ${why} défausse **${formatCards(discarded)}** et reçoit une nouvelle main`
 }
 
 // Malus "Rivière agitée" : la carte emportée, annoncée sous le tableau
