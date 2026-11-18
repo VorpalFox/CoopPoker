@@ -235,7 +235,7 @@ function addHistory(embed: EmbedBuilder, game: Game): void {
 
 function addBonusUsage(embed: EmbedBuilder, game: Game): void {
   const { swappedBy, revealed, spyglass, mastermind, highestRank, lowestRank, deadCards, compass, spied } = game.bonusUsage
-  const nameOf = (playerId: string) => escapeMarkdown(game.findPlayer(playerId)?.name ?? '?')
+  const nameOf = (seatId: string) => escapeMarkdown(game.seats.find(seat => seat.id === seatId)?.name ?? '?')
 
   const lines: string[] = []
   if (swappedBy)
@@ -380,7 +380,7 @@ function bonusButtons(game: Game): ButtonBuilder[] {
 // Boutons 1..n : bleus si libres, verts si pris, gris désactivés si bloqués (même texte, seuls la couleur et le clic changent)
 // (Discord n'a pas de bouton noir, le gris désactivé est le plus sombre dispo)
 function positionButtons(game: Game): ButtonBuilder[] {
-  return game.players.map((_, i) => {
+  return Array.from({ length: game.positionCount }, (_, i) => {
     const position = i + 1
     const id = POSITION_BUTTON_ID(position)
     const holder = game.players.find(player => player.position === position)

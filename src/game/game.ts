@@ -1,10 +1,13 @@
 import { type Card, createDeck, shuffle } from './cards.js'
 import { type BonusId, DEAD_CARD_COUNT, type EffectId, nextEffects } from './effects.js'
 import { type HandCategory, handCategory } from './handEvaluator.js'
-import { evaluateShowdown, isSingleAdjacentSwap, type ShowdownResult } from './showdown.js'
+import { evaluateShowdown, isSingleAdjacentSwap, type ShowdownPlayer, type ShowdownResult } from './showdown.js'
 
 export const MIN_PLAYERS = 2
 export const MAX_PLAYERS = 10
+// Malus "Joueur fantôme"
+export const GHOST_ID = 'ghost'
+export const GHOST_NAME = '👻 Fantôme'
 
 export type Phase = 'lobby' | 'preflop' | 'flop' | 'turn' | 'river' | 'showdown'
 export type BettingPhase = 'preflop' | 'flop' | 'turn' | 'river'
@@ -36,6 +39,9 @@ export interface Player {
   locked: boolean // position du tour en cours bloquée, plus personne ne peut la voler
   history: RoundPosition[] // positions des tours précédents
 }
+
+// Une main de la table : un joueur, ou le fantôme
+export type Seat = Pick<Player, 'id' | 'name' | 'hole'>
 
 // Ce que les bonus ont donné pendant la manche (chacun ne sert qu'une fois)
 export interface BonusUsage {
@@ -70,6 +76,7 @@ export class Game {
   effects: EffectId[] = [] // bonus / malus de la manche en cours
   bonusUsage: BonusUsage = { ...NO_BONUS_USED }
   riverSwap: RiverSwap | null = null
+  ghostHole: Card[] | null = null // malus "Joueur fantôme"
   step = 0 // change à chaque nouvelle manche et à chaque tour : un clic fait sur une étape passée est ignoré
   private lastSuccess: boolean | null = null
   private deck: Card[] = []
@@ -94,6 +101,16 @@ export class Game {
 
   get allLocked(): boolean {
     return this.players.every(player => player.locked)
+  }
+
+  // Une position de plus avec le fantôme : celle qui reste vide est la sienne
+  get positionCount(): number {
+    return this.players.length + (this.ghostHole ? 1 : 0)
+  }
+
+  // Toutes les mains de la table, fantôme compris
+  get seats(): Seat[] {
+    return this.ghostHole ? [...this.players, { id: GHOST_ID, name: GHOST_NAME, hole: this.ghostHole }] : this.players
   }
 
   hasEffect(id: EffectId): boolean {
@@ -162,6 +179,7 @@ export class Game {
       player.locked = false
       player.history = []
     }
+    this.ghostHole = this.hasEffect('ghost') ? this.draw(2) : null
 
     // malus "Pas de pré-flop" : on attaque directement au flop
     this.phase = this.hasEffect('noPreflop') ? 'flop' : 'preflop'
@@ -173,7 +191,7 @@ export class Game {
   takePosition(playerId: string, position: number): Player | null {
     if (!this.isBetting)
       throw new GameError('Pas de position à prendre en ce moment.')
-    if (!Number.isInteger(position) || position < 1 || position > this.players.length)
+    if (!Number.isInteger(position) || position < 1 || position > this.positionCount)
       throw new GameError('Position invalide.')
     const player = this.requirePlayer(playerId)
     if (player.locked)
@@ -249,7 +267,7 @@ export class Game {
       return
 
     const taken = new Set(this.players.map(player => player.position))
-    const free = this.players.map((_, i) => i + 1).filter(position => !taken.has(position))
+    const free = this.positions.filter(position => !taken.has(position))
     for (const player of this.players.filter(other => other.position === null)) {
       player.position = free.shift()!
     }
@@ -289,7 +307,7 @@ export class Game {
     if (this.bonusUsage.spyglass)
       throw new GameError('La longue-vue a déjà été utilisée cette manche.')
 
-    const best = Math.max(...this.hands.map(hole => handCategory([...hole, ...this.board])))
+    const best = Math.max(...this.seats.map(seat => handCategory([...seat.hole, ...this.board])))
     this.bonusUsage.spyglass = { phase: this.phase as BettingPhase, category: best }
   }
 
@@ -303,7 +321,8 @@ export class Game {
     if (!this.allPositioned)
       throw new GameError('Tout le monde doit avoir une position pour utiliser le mastermind.')
 
-    const correctCount = this.currentShowdown().entries.filter(entry => entry.correct).length
+    // le fantôme compte dans le classement, mais seuls les joueurs sont comptés
+    const correctCount = this.currentShowdown().entries.filter(entry => entry.correct && entry.id !== GHOST_ID).length
     this.bonusUsage.mastermind = { phase: this.phase as BettingPhase, correctCount }
   }
 
@@ -362,14 +381,14 @@ export class Game {
     this.bonusUsage.compass = { phase: this.phase as BettingPhase, playerId: target.id, position: target.position, correct }
   }
 
-  // Bonus "Espion" encore dispo ? Renvoie les joueurs qu'on peut espionner : tous les autres
-  spyTargets(playerId: string): Player[] {
+  // Bonus "Espion" encore dispo ? Renvoie qui on peut espionner : tous les autres, fantôme compris
+  spyTargets(playerId: string): Seat[] {
     this.requireBonus('spy')
     if (this.bonusUsage.spied)
       throw new GameError('L\'espion a déjà été utilisé cette manche.')
     this.requirePlayer(playerId)
 
-    return this.players.filter(player => player.id !== playerId)
+    return this.seats.filter(seat => seat.id !== playerId)
   }
 
   // Bonus "Espion" : une carte du joueur choisi, tirée au hasard, est montrée à la table
@@ -385,16 +404,25 @@ export class Game {
   // Classement avec le tableau du moment et les positions du tour en cours (0 pour qui n'est pas placé)
   private currentShowdown(): ShowdownResult {
     const current = this.players.map(player => ({ ...player, position: player.position ?? 0 }))
-    return evaluateShowdown(current, this.board)
+    return evaluateShowdown(this.withGhost(current), this.board)
   }
 
-  // Les mains de la table
-  private get hands(): Card[][] {
-    return this.players.map(player => player.hole)
+  // Malus "Joueur fantôme" : il prend la position restée vide (0 tant qu'il en reste plusieurs)
+  private withGhost(placed: ShowdownPlayer[]): ShowdownPlayer[] {
+    if (!this.ghostHole)
+      return placed
+    const free = this.positions.filter(position => !placed.some(player => player.position === position))
+    return [...placed, { id: GHOST_ID, name: GHOST_NAME, hole: this.ghostHole, position: free.length === 1 ? free[0] : 0 }]
   }
 
+  // 1..n (n+1 avec le fantôme)
+  private get positions(): number[] {
+    return Array.from({ length: this.positionCount }, (_, i) => i + 1)
+  }
+
+  // Toutes les cartes en main, fantôme compris
   private get holeCards(): Card[] {
-    return this.hands.flat()
+    return this.seats.flatMap(seat => seat.hole)
   }
 
   // Malus "Rivière agitée" : une des 4 cartes d'avant la river (la cachée comprise) est remplacée
@@ -409,7 +437,7 @@ export class Game {
   private finishRound(): void {
     // seules les positions du dernier tour comptent
     const finalPositions = this.players.map(player => ({ ...player, position: player.history.at(-1)!.position }))
-    this.result = evaluateShowdown(finalPositions, this.board)
+    this.result = evaluateShowdown(this.withGhost(finalPositions), this.board)
 
     // bonus "Seconde chance" : une seule inversion entre voisins est pardonnée
     if (!this.result.success && this.hasEffect('secondChance') && isSingleAdjacentSwap(this.result.entries))

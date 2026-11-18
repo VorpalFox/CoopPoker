@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { parseCards } from './cards.js'
 import { type EffectId } from './effects.js'
-import { Game, GameError } from './game.js'
+import { Game, GameError, GHOST_ID } from './game.js'
 import { HandCategory } from './handEvaluator.js'
 
 // Alice AA, Bob 72, tableau 9h Js 4c Kd 3h, puis des cartes en rab pour l'échange
@@ -158,6 +158,49 @@ describe('Game avec bonus / malus', () => {
     // hasard figé à 0 : c'est la 1re carte qui part, remplacée par la carte d'après la river
     expect(game.board).toEqual(parseCards('Qs Js 4c Kd 3h'))
     expect(game.riverSwap).toEqual({ index: 0, old: parseCards('9h')[0], replacement: parseCards('Qs')[0] })
+  })
+
+  // Fantôme 9h Js, tableau 4c Kd 3h Qs Qd : Alice double paire, Fantôme paire de Q hauteur J, Bob paire de Q hauteur 7
+  it('finishRound_MalusFantomeTrouALaBonnePlace_Gagne', () => {
+    startWith('ghost')
+    expect(game.ghostHole).toEqual(parseCards('9h Js'))
+    expect(game.positionCount).toBe(3)
+
+    for (let i = 0; i < 4; i++) {
+      playRound(1, 3)
+    }
+
+    expect(game.result?.success).toBe(true)
+    expect(game.result?.entries.map(entry => [entry.id, entry.position])).toEqual([['alice', 1], [GHOST_ID, 2], ['bob', 3]])
+  })
+
+  it('finishRound_MalusFantomeTrouMalPlace_Perd', () => {
+    startWith('ghost')
+
+    for (let i = 0; i < 4; i++) {
+      playRound(1, 2)
+    }
+
+    expect(game.result?.success).toBe(false)
+    expect(game.result?.entries.find(entry => entry.id === GHOST_ID)).toMatchObject({ position: 3, bestRank: 2, correct: false })
+  })
+
+  it('timeout_MalusFantome_LaissePositionVidePourLeFantome', () => {
+    startWith('ghost', 'timer')
+    game.takePosition('bob', 3)
+
+    game.timeout()
+
+    expect(game.findPlayer('alice')?.history[0].position).toBe(1)
+  })
+
+  it('spyTargets_MalusFantome_OnPeutEspionnerLeFantome', () => {
+    startWith('ghost', 'spy')
+
+    expect(game.spyTargets('bob').map(seat => seat.id)).toEqual(['alice', GHOST_ID])
+    game.useSpy('bob', GHOST_ID)
+
+    expect(game.bonusUsage.spied?.card).toEqual(parseCards('9h')[0])
   })
 
   it('isFlopCardHidden_MalusCarteCachee_CacheeAuFlopEtAuTurnPuisRetourneeALaRiver', () => {
