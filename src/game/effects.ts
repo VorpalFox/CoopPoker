@@ -1,7 +1,7 @@
 // Bonus / malus : une manche gagnée amène un malus pour la suivante, une manche perdue un bonus.
 // En mode chaos ils s'accumulent : une victoire retire le plus vieux bonus et ajoute un malus, et inversement.
 
-export type MalusId = 'noLock' | 'noPreflop' | 'hiddenHistory' | 'timer' | 'hiddenFlopCard'
+export type MalusId = 'noLock' | 'noPreflop' | 'hiddenHistory' | 'timer' | 'hiddenFlopCard' | 'noSteal'
 export type BonusId = 'swap' | 'reveal' | 'spyglass' | 'check' | 'secondChance' | 'mountain' | 'bilge'
 export type EffectId = MalusId | BonusId
 export type EffectKind = 'malus' | 'bonus'
@@ -21,6 +21,7 @@ export const EFFECTS: Record<EffectId, EffectInfo> = {
   hiddenHistory: { kind: 'malus', emoji: '🙈', name: 'Historique masqué', description: 'les positions des tours précédents restent cachées jusqu\'au résultat.' },
   timer: { kind: 'malus', emoji: '⏱️', name: 'Chrono', description: `${TIMER_SECONDS_PER_PLAYER} s par joueur et par tour. Au bout du temps, ceux qui ne sont pas placés prennent les positions restantes et le tour passe.` },
   hiddenFlopCard: { kind: 'malus', emoji: '🂠', name: 'Carte cachée', description: 'la 1re carte du flop reste face cachée jusqu\'à la river.' },
+  noSteal: { kind: 'malus', emoji: '🚫', name: 'Pas de vol', description: 'on ne prend qu\'une position libre. Pour récupérer une position occupée, son titulaire doit d\'abord la rendre.' },
   swap: { kind: 'bonus', emoji: '🔄', name: 'Échange', description: 'le premier qui clique remplace une de ses cartes.' },
   reveal: { kind: 'bonus', emoji: '👁️', name: 'Révélation', description: 'le premier qui clique montre une de ses cartes à la table.' },
   spyglass: { kind: 'bonus', emoji: '🔭', name: 'Longue-vue', description: 'une fois, le bot annonce la plus haute combinaison parmi toutes les mains, avec le tableau du moment.' },

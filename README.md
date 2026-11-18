@@ -40,6 +40,7 @@ Le même effet n'est jamais actif deux fois. Si tous ceux d'une sorte le sont d�
 | 🙈 | Historique masqué | Les positions des tours précédents restent cachées jusqu'au résultat. |
 | ⏱️ | Chrono | 20 s par joueur et par tour, avec un compte à rebours sur la table. Au bout du temps, ceux qui ne sont pas placés prennent les positions restantes et le tour passe. |
 | 🂠 | Carte cachée | La 1re carte du flop reste face cachée jusqu'à la river. |
+| 🚫 | Pas de vol | On ne prend qu'une position libre. Pour récupérer une position occupée, son titulaire doit d'abord la rendre en recliquant dessus. |
 
 ### 😇 Bonus
 

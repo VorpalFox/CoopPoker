@@ -177,6 +177,8 @@ export class Game {
     const holder = this.players.find(other => other.position === position) ?? null
     if (holder?.locked)
       throw new GameError(`La position ${position} est bloquée par ${holder.name}.`)
+    if (holder && this.hasEffect('noSteal'))
+      throw new GameError(`Malus « Pas de vol » : ${holder.name} doit d'abord rendre la position ${position}.`)
     if (holder)
       holder.position = null
     player.position = position

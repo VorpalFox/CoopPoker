@@ -66,6 +66,24 @@ describe('Game avec bonus / malus', () => {
     expect(() => game.lock('alice')).toThrow(GameError)
   })
 
+  it('takePosition_MalusPasDeVolPositionPrise_Refuse', () => {
+    startWith('noSteal')
+    game.takePosition('alice', 1)
+
+    expect(() => game.takePosition('bob', 1)).toThrow(GameError)
+    expect(game.findPlayer('alice')?.position).toBe(1)
+  })
+
+  it('takePosition_MalusPasDeVolPositionRendue_PeutLaPrendre', () => {
+    startWith('noSteal')
+    game.takePosition('alice', 1)
+    game.takePosition('alice', 1)
+
+    game.takePosition('bob', 1)
+
+    expect(game.findPlayer('bob')?.position).toBe(1)
+  })
+
   it('start_MalusPasDePreflop_CommenceAuFlop', () => {
     startWith('noPreflop')
 
