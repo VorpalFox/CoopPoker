@@ -1,7 +1,7 @@
 // Bonus / malus : une manche gagnée amène un malus pour la suivante, une manche perdue un bonus.
 // En mode chaos ils s'accumulent : une victoire retire le plus vieux bonus et ajoute un malus, et inversement.
 
-export type MalusId = 'noLock' | 'noPreflop' | 'hiddenHistory' | 'timer' | 'hiddenFlopCard' | 'noSteal' | 'firstLocked' | 'noTurn'
+export type MalusId = 'noLock' | 'noPreflop' | 'hiddenHistory' | 'timer' | 'hiddenFlopCard' | 'noSteal' | 'firstLocked' | 'noTurn' | 'roughRiver'
 export type BonusId = 'swap' | 'reveal' | 'spyglass' | 'mastermind' | 'secondChance' | 'mountain' | 'bilge' | 'deadCards'
 export type EffectId = MalusId | BonusId
 export type EffectKind = 'malus' | 'bonus'
@@ -25,6 +25,7 @@ export const EFFECTS: Record<EffectId, EffectInfo> = {
   noSteal: { kind: 'malus', emoji: '🚫', name: 'Pas de vol', description: 'on ne prend qu\'une position libre. Pour récupérer une position occupée, son titulaire doit d\'abord la rendre.' },
   firstLocked: { kind: 'malus', emoji: '🥇', name: 'Premier verrouillé', description: 'à chaque tour, le premier qui prend une position est bloqué dessus jusqu\'au tour suivant.' },
   noTurn: { kind: 'malus', emoji: '⏭️', name: 'Pas de turn', description: 'pas de classement à la turn : la turn et la river sortent ensemble.' },
+  roughRiver: { kind: 'malus', emoji: '🌊', name: 'Rivière agitée', description: 'à la river, une des 4 premières cartes du tableau, tirée au hasard, est remplacée par une nouvelle.' },
   swap: { kind: 'bonus', emoji: '🔄', name: 'Échange', description: 'le premier qui clique remplace une de ses cartes.' },
   reveal: { kind: 'bonus', emoji: '👁️', name: 'Révélation', description: 'le premier qui clique montre une de ses cartes à la table.' },
   spyglass: { kind: 'bonus', emoji: '🔭', name: 'Longue-vue', description: 'une fois, le bot annonce la plus haute combinaison parmi toutes les mains, avec le tableau du moment.' },

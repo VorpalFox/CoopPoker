@@ -48,6 +48,13 @@ export interface BonusUsage {
   deadCards: Card[] | null
 }
 
+// Malus "Rivière agitée" : la carte du tableau emportée par la river
+export interface RiverSwap {
+  index: number
+  old: Card
+  replacement: Card
+}
+
 const NO_BONUS_USED: BonusUsage = { swappedBy: null, revealed: null, spyglass: null, mastermind: null, highestRank: null, lowestRank: null, deadCards: null }
 
 export class Game {
@@ -60,6 +67,7 @@ export class Game {
   chaosMode = false
   effects: EffectId[] = [] // bonus / malus de la manche en cours
   bonusUsage: BonusUsage = { ...NO_BONUS_USED }
+  riverSwap: RiverSwap | null = null
   step = 0 // change à chaque nouvelle manche et à chaque tour : un clic fait sur une étape passée est ignoré
   private lastSuccess: boolean | null = null
   private deck: Card[] = []
@@ -145,6 +153,7 @@ export class Game {
     this.board = []
     this.result = null
     this.bonusUsage = { ...NO_BONUS_USED }
+    this.riverSwap = null
     for (const player of this.players) {
       player.hole = this.draw(2)
       player.position = null
@@ -226,6 +235,8 @@ export class Game {
     this.phase = next
     this.step++
     this.board.push(...this.draw(BOARD_SIZE[next] - this.board.length))
+    if (next === 'river' && this.hasEffect('roughRiver'))
+      this.stirRiver()
     if (next === 'showdown')
       this.finishRound()
   }
@@ -337,6 +348,15 @@ export class Game {
 
   private get holeCards(): Card[] {
     return this.hands.flat()
+  }
+
+  // Malus "Rivière agitée" : une des 4 cartes d'avant la river (la cachée comprise) est remplacée
+  private stirRiver(): void {
+    const index = Math.floor(this.random() * 4)
+    const old = this.board[index]
+    const replacement = this.draw(1)[0]
+    this.board[index] = replacement
+    this.riverSwap = { index, old, replacement }
   }
 
   private finishRound(): void {

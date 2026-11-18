@@ -159,7 +159,7 @@ function bettingEmbed(game: Game, withFooter: boolean, deadline: number | null):
   const embed = new EmbedBuilder()
     .setColor(COLORS.betting)
     .setTitle(`🃏 ${PHASE_LABELS[game.phase]}`)
-    .setDescription(`${boardText(game)}${timer}`)
+    .setDescription(`${boardText(game)}${riverSwapText(game)}${timer}`)
   if (!game.hasEffect('hiddenHistory'))
     addHistory(embed, game)
   addBonusUsage(embed, game)
@@ -181,7 +181,7 @@ function showdownEmbed(game: Game): EmbedBuilder {
   const embed = new EmbedBuilder()
     .setColor(result.success ? COLORS.win : COLORS.loss)
     .setTitle(title)
-    .setDescription(boardText(game))
+    .setDescription(`${boardText(game)}${riverSwapText(game)}`)
     .addFields({ name: 'Résultat', value: result.entries.map(showdownLine).join('\n') })
   addHistory(embed, game)
   addBonusUsage(embed, game)
@@ -255,6 +255,15 @@ function boardText(game: Game): string {
   while (slots.length < BOARD_SLOTS)
     slots.push('empty')
   return asciiCards(slots)
+}
+
+// Malus "Rivière agitée" : la carte emportée, annoncée sous le tableau
+function riverSwapText(game: Game): string {
+  if (!game.riverSwap)
+    return ''
+  const { index, old, replacement } = game.riverSwap
+  const hidden = index === 0 && game.hasEffect('hiddenFlopCard') ? ' (la carte cachée)' : ''
+  return `\n🌊 La rivière a emporté **${formatCard(old)}**${hidden}, remplacée par **${formatCard(replacement)}**`
 }
 
 // Cartes dessinées côte à côte :

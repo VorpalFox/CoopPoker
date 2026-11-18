@@ -147,6 +147,19 @@ describe('Game avec bonus / malus', () => {
     expect(game.result?.success).toBe(true)
   })
 
+  it('advance_MalusRiviereAgitee_RemplaceUneCarteALaRiver', () => {
+    startWith('roughRiver')
+    playRound(1, 2)
+    playRound(1, 2)
+    expect(game.riverSwap).toBeNull()
+
+    playRound(1, 2)
+
+    // hasard figé à 0 : c'est la 1re carte qui part, remplacée par la carte d'après la river
+    expect(game.board).toEqual(parseCards('Qs Js 4c Kd 3h'))
+    expect(game.riverSwap).toEqual({ index: 0, old: parseCards('9h')[0], replacement: parseCards('Qs')[0] })
+  })
+
   it('isFlopCardHidden_MalusCarteCachee_CacheeAuFlopEtAuTurnPuisRetourneeALaRiver', () => {
     startWith('hiddenFlopCard')
 
