@@ -167,6 +167,10 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
       game.useBilge(userId)
       await updateTable(interaction, session)
       return
+    case 'deadCards':
+      game.useDeadCards(userId)
+      await updateTable(interaction, session)
+      return
     case 'replay': {
       game.requirePlayer(userId)
       // le résultat de la manche finie reste dans le salon (sans boutons) pour pouvoir remonter l'historique,

@@ -23,6 +23,7 @@ export const BUTTON_IDS = {
   check: `${BUTTON_PREFIX}:check`,
   mountain: `${BUTTON_PREFIX}:mountain`,
   bilge: `${BUTTON_PREFIX}:bilge`,
+  deadCards: `${BUTTON_PREFIX}:deadCards`,
 }
 export const POSITION_BUTTON_ID = (position: number) => `${BUTTON_PREFIX}:pos:${position}`
 // Choix de la carte à échanger / montrer (cp:swap:0, cp:reveal:1...)
@@ -216,7 +217,7 @@ function addHistory(embed: EmbedBuilder, game: Game): void {
 }
 
 function addBonusUsage(embed: EmbedBuilder, game: Game): void {
-  const { swappedBy, revealed, spyglass, check, highestRank, lowestRank } = game.bonusUsage
+  const { swappedBy, revealed, spyglass, check, highestRank, lowestRank, deadCards } = game.bonusUsage
   const nameOf = (playerId: string) => escapeMarkdown(game.findPlayer(playerId)?.name ?? '?')
 
   const lines: string[] = []
@@ -232,6 +233,8 @@ function addBonusUsage(embed: EmbedBuilder, game: Game): void {
     lines.push(`⛰️ La plus haute carte en main : **${rankName(highestRank)}**`)
   if (lowestRank)
     lines.push(`⚓ La plus basse carte en main : **${rankName(lowestRank)}**`)
+  if (deadCards)
+    lines.push(`☠️ Cartes mortes : **${formatCards(deadCards)}**`)
   if (lines.length > 0)
     embed.addFields({ name: '😇 Bonus utilisés', value: lines.join('\n') })
 }
@@ -317,7 +320,7 @@ function tableButtons(game: Game): ActionRowBuilder<ButtonBuilder>[] {
 
 // Un bouton par bonus actif pas encore utilisé
 function bonusButtons(game: Game): ButtonBuilder[] {
-  const { swappedBy, revealed, spyglass, check, highestRank, lowestRank } = game.bonusUsage
+  const { swappedBy, revealed, spyglass, check, highestRank, lowestRank, deadCards } = game.bonusUsage
   const beforeFlop = game.board.length < 3
   const buttons: ButtonBuilder[] = []
   if (game.hasEffect('swap') && !swappedBy)
@@ -332,6 +335,8 @@ function bonusButtons(game: Game): ButtonBuilder[] {
     buttons.push(button(BUTTON_IDS.mountain, '⛰️ Plus haute carte', ButtonStyle.Primary))
   if (game.hasEffect('bilge') && !lowestRank)
     buttons.push(button(BUTTON_IDS.bilge, '⚓ Plus basse carte', ButtonStyle.Primary))
+  if (game.hasEffect('deadCards') && !deadCards)
+    buttons.push(button(BUTTON_IDS.deadCards, '☠️ Cartes mortes', ButtonStyle.Primary))
   return buttons
 }
 

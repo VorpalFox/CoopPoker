@@ -1,5 +1,5 @@
 import { type Card, createDeck, shuffle } from './cards.js'
-import { type BonusId, type EffectId, nextEffects } from './effects.js'
+import { type BonusId, DEAD_CARD_COUNT, type EffectId, nextEffects } from './effects.js'
 import { type HandCategory, handCategory } from './handEvaluator.js'
 import { evaluateShowdown, isSingleAdjacentSwap, type ShowdownResult } from './showdown.js'
 
@@ -45,9 +45,10 @@ export interface BonusUsage {
   check: { phase: BettingPhase, success: boolean } | null
   highestRank: number | null
   lowestRank: number | null
+  deadCards: Card[] | null
 }
 
-const NO_BONUS_USED: BonusUsage = { swappedBy: null, revealed: null, spyglass: null, check: null, highestRank: null, lowestRank: null }
+const NO_BONUS_USED: BonusUsage = { swappedBy: null, revealed: null, spyglass: null, check: null, highestRank: null, lowestRank: null, deadCards: null }
 
 export class Game {
   phase: Phase = 'lobby'
@@ -302,6 +303,16 @@ export class Game {
       throw new GameError('Le fond de cale a déjà été utilisé cette manche.')
 
     this.bonusUsage.lowestRank = Math.min(...this.holeCards.map(card => card.rank))
+  }
+
+  // Bonus "Cartes mortes" : des cartes brûlées et montrées, qui ne sortiront plus
+  useDeadCards(playerId: string): void {
+    this.requireBonus('deadCards')
+    this.requirePlayer(playerId)
+    if (this.bonusUsage.deadCards)
+      throw new GameError('Les cartes mortes ont déjà été brûlées cette manche.')
+
+    this.bonusUsage.deadCards = this.draw(DEAD_CARD_COUNT)
   }
 
   // Les mains de la table

@@ -53,6 +53,7 @@ Le même effet n'est jamais actif deux fois. Si tous ceux d'une sorte le sont d�
 | 🍀 | Seconde chance | À la fin, une seule inversion entre deux joueurs voisins est pardonnée. |
 | ⛰️ | Montagne | Une fois, le bot annonce la plus haute carte en main, valeur seulement, sans dire qui l'a. |
 | ⚓ | Fond de cale | Une fois, le bot annonce la plus basse carte en main, valeur seulement, sans dire qui l'a. |
+| ☠️ | Cartes mortes | Une fois, le bot brûle 4 cartes du paquet et les montre à la table. Elles ne sont dans aucune main et ne sortiront pas au tableau. |
 
 Les bonus à utiliser apparaissent comme boutons sous la table, et ce qu'ils ont révélé reste affiché sur la table jusqu'à la fin de la manche.
 

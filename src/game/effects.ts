@@ -2,7 +2,7 @@
 // En mode chaos ils s'accumulent : une victoire retire le plus vieux bonus et ajoute un malus, et inversement.
 
 export type MalusId = 'noLock' | 'noPreflop' | 'hiddenHistory' | 'timer' | 'hiddenFlopCard' | 'noSteal'
-export type BonusId = 'swap' | 'reveal' | 'spyglass' | 'check' | 'secondChance' | 'mountain' | 'bilge'
+export type BonusId = 'swap' | 'reveal' | 'spyglass' | 'check' | 'secondChance' | 'mountain' | 'bilge' | 'deadCards'
 export type EffectId = MalusId | BonusId
 export type EffectKind = 'malus' | 'bonus'
 
@@ -14,6 +14,7 @@ export interface EffectInfo {
 }
 
 export const TIMER_SECONDS_PER_PLAYER = 20
+export const DEAD_CARD_COUNT = 4
 
 export const EFFECTS: Record<EffectId, EffectInfo> = {
   noLock: { kind: 'malus', emoji: '🔓', name: 'Pas de blocage', description: 'impossible de bloquer sa position.' },
@@ -29,6 +30,7 @@ export const EFFECTS: Record<EffectId, EffectInfo> = {
   secondChance: { kind: 'bonus', emoji: '🍀', name: 'Seconde chance', description: 'à la fin, une seule inversion entre deux joueurs voisins est pardonnée.' },
   mountain: { kind: 'bonus', emoji: '⛰️', name: 'Montagne', description: 'une fois, le bot annonce la plus haute carte en main, valeur seulement, sans dire qui l\'a.' },
   bilge: { kind: 'bonus', emoji: '⚓', name: 'Fond de cale', description: 'une fois, le bot annonce la plus basse carte en main, valeur seulement, sans dire qui l\'a.' },
+  deadCards: { kind: 'bonus', emoji: '☠️', name: 'Cartes mortes', description: `une fois, le bot brûle ${DEAD_CARD_COUNT} cartes du paquet et les montre : elles ne sont dans aucune main et ne sortiront pas au tableau.` },
 }
 
 export const EFFECT_IDS = Object.keys(EFFECTS) as EffectId[]

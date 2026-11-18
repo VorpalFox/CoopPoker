@@ -210,6 +210,17 @@ describe('Game avec bonus / malus', () => {
     expect(() => game.useBilge('alice')).toThrow(GameError)
   })
 
+  it('useDeadCards_BonusCartesMortes_BruleQuatreCartesQuiNeSortentPlus', () => {
+    startWith('deadCards')
+
+    game.useDeadCards('alice')
+    playRound(1, 2)
+
+    expect(game.bonusUsage.deadCards).toEqual(parseCards('9h Js 4c Kd'))
+    expect(game.board).toEqual(parseCards('3h Qs Qd'))
+    expect(() => game.useDeadCards('bob')).toThrow(GameError)
+  })
+
   it('finishRound_SecondeChanceInversionVoisins_Gagne', () => {
     startWith('secondChance')
     for (let i = 0; i < 4; i++) {
