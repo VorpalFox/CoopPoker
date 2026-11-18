@@ -80,6 +80,11 @@ export class Game {
     return this.effects.includes(id)
   }
 
+  // Malus "Carte cachée" : la 1re carte du flop reste face cachée au flop et au turn, elle se retourne à la river
+  get isFlopCardHidden(): boolean {
+    return this.hasEffect('hiddenFlopCard') && (this.phase === 'flop' || this.phase === 'turn')
+  }
+
   findPlayer(id: string): Player | undefined {
     return this.players.find(player => player.id === id)
   }

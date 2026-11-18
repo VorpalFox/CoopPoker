@@ -102,7 +102,7 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
       session.tableMessage = await requireChannel(interaction).send(table(session))
       return
     case 'cards':
-      await interaction.reply({ ...renderHoleCards(game, game.requirePlayer(userId)), flags: MessageFlags.Ephemeral })
+      await interaction.reply({ ...renderHoleCards(game.requirePlayer(userId)), flags: MessageFlags.Ephemeral })
       session.cardViews.set(userId, interaction)
       return
     case 'pos':
@@ -118,7 +118,6 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
       game.advance()
       startRoundTimer(session)
       await updateTable(interaction, session)
-      await refreshCardViews(session)
       return
     case 'swap':
     case 'reveal':
@@ -163,9 +162,10 @@ async function handleCardChoice(interaction: ButtonInteraction, session: TableSe
     game.swapCard(player.id, Number(cardIndex))
   else
     game.revealCard(player.id, Number(cardIndex))
-  await interaction.update(renderHoleCards(game, player))
+  await interaction.update(renderHoleCards(player))
   await editTable(session)
-  await refreshCardViews(session)
+  if (kind === 'swap')
+    await refreshCardViews(session)
 }
 
 // La table sur laquelle on vient de cliquer : on la modifie et on retient ce message
@@ -209,10 +209,9 @@ async function onTimeout(session: TableSession): Promise<void> {
   session.game.timeout()
   startRoundTimer(session)
   await editTable(session)
-  await refreshCardViews(session)
 }
 
-// Met à jour les messages cachés avec le tableau et la meilleure main de chacun.
+// Met à jour les messages cachés "Mes cartes" (après un Échange, la carte a changé).
 // Au-delà de 15 min Discord refuse : on oublie ce message, le joueur re-cliquera sur "Mes cartes".
 async function refreshCardViews(session: TableSession): Promise<void> {
   const { game, cardViews } = session
@@ -224,7 +223,7 @@ async function refreshCardViews(session: TableSession): Promise<void> {
     if (!player)
       return
     try {
-      await cardsClick.editReply(renderHoleCards(game, player))
+      await cardsClick.editReply(renderHoleCards(player))
     } catch {
       cardViews.delete(playerId)
     }

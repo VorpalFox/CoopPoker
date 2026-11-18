@@ -1,8 +1,8 @@
 import { ActionRowBuilder, type BaseMessageOptions, ButtonBuilder, ButtonStyle, EmbedBuilder, escapeMarkdown } from 'discord.js'
-import { type Card, formatCard, formatCards } from '../game/cards.js'
+import { type Card, formatCard, formatCards, isRed, rankLabel, suitText } from '../game/cards.js'
 import { EFFECTS, type EffectId, type EffectKind } from '../game/effects.js'
 import { type Game, MAX_PLAYERS, MIN_PLAYERS, type Phase, type Player } from '../game/game.js'
-import { evaluateHand, HAND_NAMES } from '../game/handEvaluator.js'
+import { HAND_NAMES } from '../game/handEvaluator.js'
 import { type ShowdownEntry } from '../game/showdown.js'
 
 export const BUTTON_PREFIX = 'cp'
@@ -59,10 +59,14 @@ const HAND_RANKING = [
   '',
   'À combinaison égale, la plus haute carte départage, puis la suivante…',
   'L\'as compte aussi pour 1 dans la quinte.',
-].join('\n')
+].join('\n').replace(/[♠♥♦♣]/g, suit => `${suit}️`) // couleurs émoji, comme les vraies cartes
 
 const COLORS = { lobby: 0x5865f2, betting: 0x2b8a3e, info: 0x868e96, win: 0xf59f00, loss: 0xe03131 }
 const BUTTONS_PER_ROW = 5
+const BOARD_SLOTS = 5
+const CARD_WIDTH = 4 // intérieur d'une carte, assez pour " 10 "
+const ANSI_RED = '\u001b[31m'
+const ANSI_RESET = '\u001b[0m'
 
 interface TableOptions {
   withButtons?: boolean
@@ -93,14 +97,8 @@ export function renderHandRanking(): BaseMessageOptions {
 }
 
 // Cartes d'un joueur, en message caché (bouton "Mes cartes")
-export function renderHoleCards(game: Game, player: Player): BaseMessageOptions {
-  const lines = [`Tes cartes : **${formatCards(player.hole)}**`]
-  if (game.board.length > 0) {
-    const hand = evaluateHand([...player.hole, ...game.board])
-    lines.push(`Tableau : ${formatCards(game.board)}`)
-    lines.push(`Ta main : **${HAND_NAMES[hand.category]}** (${formatCards(hand.cards)})`)
-  }
-  return { content: lines.join('\n'), components: [] }
+export function renderHoleCards(player: Player): BaseMessageOptions {
+  return { content: `Tes cartes :\n${asciiCards(player.hole)}`, components: [] }
 }
 
 // Réponse privée des bonus Échange / Révélation : on choisit la carte
@@ -146,7 +144,7 @@ function bettingEmbed(game: Game, withFooter: boolean, deadline: number | null):
   const embed = new EmbedBuilder()
     .setColor(COLORS.betting)
     .setTitle(`🃏 ${PHASE_LABELS[game.phase]}`)
-    .setDescription(`${boardText(game.board)}${timer}`)
+    .setDescription(`${boardText(game)}${timer}`)
   if (!game.hasEffect('hiddenHistory'))
     addHistory(embed, game)
   addBonusUsage(embed, game)
@@ -168,7 +166,7 @@ function showdownEmbed(game: Game): EmbedBuilder {
   const embed = new EmbedBuilder()
     .setColor(result.success ? COLORS.win : COLORS.loss)
     .setTitle(title)
-    .setDescription(boardText(game.board))
+    .setDescription(boardText(game))
     .addFields({ name: 'Résultat', value: result.entries.map(showdownLine).join('\n') })
   addHistory(embed, game)
   addBonusUsage(embed, game)
@@ -226,8 +224,43 @@ function showdownLine(entry: ShowdownEntry): string {
   return `${entry.correct ? '✅' : '❌'} **${entry.position}** · ${escapeMarkdown(entry.name)} : \`${formatCards(entry.hole)}\` ${HAND_NAMES[entry.hand.category]}${correction}`
 }
 
-function boardText(board: Card[]): string {
-  return board.length > 0 ? `## ${formatCards(board)}` : '_Pas encore de cartes au tableau_'
+function boardText(game: Game): string {
+  if (game.board.length === 0)
+    return '_Pas encore de cartes au tableau_'
+  // les 5 emplacements, ceux du turn et de la river vides tant qu'ils ne sont pas tirés
+  const slots: BoardSlot[] = [...game.board]
+  if (game.isFlopCardHidden)
+    slots[0] = 'hidden'
+  while (slots.length < BOARD_SLOTS)
+    slots.push('empty')
+  return asciiCards(slots)
+}
+
+// Cartes dessinées côte à côte :
+// ┌────┐┌────┐
+// │ 10 ││░░░░│   valeur au-dessus de la couleur, dos de carte pour la carte cachée
+// │ ♥  ││░░░░│
+// └────┘└────┘
+function asciiCards(slots: BoardSlot[]): string {
+  const lines = [
+    slots.map(() => `┌${'─'.repeat(CARD_WIDTH)}┐`),
+    slots.map(slot => cardFace(slot, 'rank')),
+    slots.map(slot => cardFace(slot, 'suit')),
+    slots.map(() => `└${'─'.repeat(CARD_WIDTH)}┘`),
+  ].map(parts => parts.join(' '))
+  // bloc "ansi" : Discord y colore le texte, d'où ♥ ♦ en rouge
+  return ['```ansi', ...lines, '```'].join('\n')
+}
+
+type BoardSlot = Card | 'hidden' | 'empty'
+
+function cardFace(slot: BoardSlot, line: 'rank' | 'suit'): string {
+  if (slot === 'hidden')
+    return `│${'░'.repeat(CARD_WIDTH)}│`
+  if (slot === 'empty')
+    return `│${' '.repeat(CARD_WIDTH)}│`
+  const text = ` ${line === 'rank' ? rankLabel(slot.rank) : suitText(slot.suit)}`.padEnd(CARD_WIDTH)
+  return `│${isRed(slot.suit) ? `${ANSI_RED}${text}${ANSI_RESET}` : text}│`
 }
 
 function playerName(player: Player): string {
@@ -282,16 +315,14 @@ function bonusButtons(game: Game): ButtonBuilder[] {
 
 // Boutons 1..n : bleus si libres, verts si pris, gris désactivés si bloqués (même texte, seuls la couleur et le clic changent)
 // (Discord n'a pas de bouton noir, le gris désactivé est le plus sombre dispo)
-// Malus "Positions anonymes" : juste le numéro, sans le nom
 function positionRows(game: Game): ActionRowBuilder<ButtonBuilder>[] {
-  const anonymous = game.hasEffect('anonymous')
   const buttons = game.players.map((_, i) => {
     const position = i + 1
     const id = POSITION_BUTTON_ID(position)
     const holder = game.players.find(player => player.position === position)
     if (!holder)
       return button(id, `${position}`, ButtonStyle.Primary)
-    const label = anonymous ? `${position}` : `${position} · ${truncate(holder.name, 20)}`
+    const label = `${position} · ${truncate(holder.name, 20)}`
     if (holder.locked)
       return button(id, label, ButtonStyle.Secondary).setDisabled(true)
     return button(id, label, ButtonStyle.Success)

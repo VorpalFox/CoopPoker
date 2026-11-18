@@ -5,7 +5,7 @@ Bot Discord de poker coopératif. Chacun reçoit 2 cartes. À chaque tour (pré-
 ## Utilisation
 
 - `/poker create` : ouvre une table dans le salon. Les autres cliquent sur **Rejoindre**, puis **Lancer**.
-- **🂠 Mes cartes** : affiche tes cartes dans un message caché, visible par toi seul. Un clic par manche suffit : le message se met à jour tout seul à chaque tour avec le tableau et ta meilleure main. Discord limite cette mise à jour à 15 minutes après le clic ; au-delà, il faut re-cliquer.
+- **🂠 Mes cartes** : affiche tes 2 cartes dans un message caché, visible par toi seul. Un clic par manche suffit.
 - **1..n** : prend une position, même si elle est déjà prise. Re-cliquer sur la sienne la rend.
 - **🔒 Bloquer ma position** : retourne ton jeton, définitivement jusqu'au tour suivant. Plus personne ne peut te le voler, et tu ne peux plus en changer.
 - **Couleurs des positions** : bleu = libre, vert = prise, gris désactivé = bloquée. Dans l'historique, ● = libre et ○ = bloquée.
@@ -39,7 +39,7 @@ Le même effet n'est jamais actif deux fois. Si tous ceux d'une sorte le sont d�
 | ⏭️ | Pas de pré-flop | La manche commence directement au flop. |
 | 🙈 | Historique masqué | Les positions des tours précédents restent cachées jusqu'au résultat. |
 | ⏱️ | Chrono | 20 s par joueur et par tour, avec un compte à rebours sur la table. Au bout du temps, ceux qui ne sont pas placés prennent les positions restantes et le tour passe. |
-| 🎭 | Positions anonymes | Les boutons ne montrent pas qui tient quelle position. |
+| 🂠 | Carte cachée | La 1re carte du flop reste face cachée jusqu'à la river. |
 
 ### 😇 Bonus
 

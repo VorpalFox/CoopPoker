@@ -75,6 +75,19 @@ describe('Game avec bonus / malus', () => {
     expect(game.findPlayer('alice')?.history[0].phase).toBe('flop')
   })
 
+  it('isFlopCardHidden_MalusCarteCachee_CacheeAuFlopEtAuTurnPuisRetourneeALaRiver', () => {
+    startWith('hiddenFlopCard')
+
+    expect(game.isFlopCardHidden).toBe(false)
+    playRound(1, 2)
+    expect(game.isFlopCardHidden).toBe(true)
+    playRound(1, 2)
+    expect(game.isFlopCardHidden).toBe(true)
+    playRound(1, 2)
+    expect(game.phase).toBe('river')
+    expect(game.isFlopCardHidden).toBe(false)
+  })
+
   it('timeout_JoueursPasPlaces_PrennentLesPositionsRestantesEtLeTourPasse', () => {
     startWith('timer')
     game.takePosition('bob', 1)

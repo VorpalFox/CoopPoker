@@ -7,7 +7,9 @@ export interface Card {
   suit: Suit
 }
 
-const SUIT_SYMBOLS: Record<Suit, string> = { s: '♠', h: '♥', d: '♦', c: '♣' }
+const SUIT_TEXT: Record<Suit, string> = { s: '♠', h: '♥', d: '♦', c: '♣' }
+// U+FE0F force l'affichage en émoji couleur (♥️ ♦️ rouges), sinon Discord choisit selon le contexte
+const SUIT_SYMBOLS: Record<Suit, string> = { s: '♠️', h: '♥️', d: '♦️', c: '♣️' }
 const RANK_LABELS: Record<number, string> = { 11: 'J', 12: 'Q', 13: 'K', 14: 'A' }
 const RANK_CHARS: Record<string, number> = { T: 10, J: 11, Q: 12, K: 13, A: 14 }
 
@@ -27,6 +29,15 @@ export function shuffle<T>(items: T[], random: () => number = Math.random): T[] 
 
 export function rankLabel(rank: number): string {
   return RANK_LABELS[rank] ?? String(rank)
+}
+
+// Symbole simple, d'un caractère de large (pour les blocs de code, où l'émoji décalerait les colonnes)
+export function suitText(suit: Suit): string {
+  return SUIT_TEXT[suit]
+}
+
+export function isRed(suit: Suit): boolean {
+  return suit === 'h' || suit === 'd'
 }
 
 export function formatCard(card: Card): string {
