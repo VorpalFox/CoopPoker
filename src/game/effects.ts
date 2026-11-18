@@ -2,7 +2,7 @@
 // En mode chaos ils s'accumulent : une victoire retire le plus vieux bonus et ajoute un malus, et inversement.
 
 export type MalusId = 'noLock' | 'noPreflop' | 'hiddenHistory' | 'timer' | 'hiddenFlopCard' | 'noSteal' | 'firstLocked' | 'noTurn' | 'roughRiver' | 'ghost' | 'lockedTop' | 'lockedBottom'
-export type BonusId = 'swap' | 'reveal' | 'spyglass' | 'mastermind' | 'secondChance' | 'mountain' | 'bilge' | 'deadCards' | 'compass' | 'spy' | 'redLantern'
+export type BonusId = 'swap' | 'reveal' | 'spyglass' | 'mastermind' | 'secondChance' | 'mountain' | 'bilge' | 'deadCards' | 'compass' | 'spy' | 'redLantern' | 'census'
 export type EffectId = MalusId | BonusId
 export type EffectKind = 'malus' | 'bonus'
 
@@ -40,6 +40,7 @@ export const EFFECTS: Record<EffectId, EffectInfo> = {
   compass: { kind: 'bonus', emoji: '🧭', name: 'Boussole', description: 'une fois, à partir du flop, on choisit un joueur placé et le bot dit s\'il est bien ou mal placé avec le tableau du moment.' },
   spy: { kind: 'bonus', emoji: '🕵️', name: 'Espion', description: 'le premier qui clique choisit un joueur : une de ses cartes, tirée au hasard, est montrée à la table.' },
   redLantern: { kind: 'bonus', emoji: '🏮', name: 'Lanterne rouge', description: 'une fois, à partir du flop, le bot dit qui a la pire main avec le tableau du moment.' },
+  census: { kind: 'bonus', emoji: '🧮', name: 'Recensement', description: 'une fois, on choisit une valeur et le bot dit combien de cartes de cette valeur sont encore dans la pioche.' },
 }
 
 export const EFFECT_IDS = Object.keys(EFFECTS) as EffectId[]

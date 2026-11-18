@@ -448,6 +448,21 @@ describe('Game avec bonus / malus', () => {
     expect(game.bonusUsage.redLantern?.seatIds).toEqual(['alice', 'bob'])
   })
 
+  it('useCensus_BonusRecensement_CompteLesCartesDeLaPioche', () => {
+    startWith('census')
+
+    // pioche après la donne : 9h Js 4c Kd 3h Qs Qd
+    game.useCensus('alice', 12)
+
+    expect(game.bonusUsage.census).toEqual({ phase: 'preflop', rank: 12, count: 2 })
+    expect(() => game.useCensus('bob', 14)).toThrow(GameError)
+  })
+
+  it('useCensus_ValeurInvalide_Refuse', () => {
+    startWith('census')
+    expect(() => game.useCensus('alice', 15)).toThrow(GameError)
+  })
+
   it('finishRound_SecondeChanceInversionVoisins_Gagne', () => {
     startWith('secondChance')
     for (let i = 0; i < 4; i++) {

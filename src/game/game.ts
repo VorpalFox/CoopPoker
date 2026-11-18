@@ -55,6 +55,7 @@ export interface BonusUsage {
   compass: { phase: BettingPhase, playerId: string, position: number, correct: boolean } | null
   spied: { byId: string, targetId: string, card: Card } | null
   redLantern: { phase: BettingPhase, seatIds: string[] } | null // plusieurs si ex-aequo
+  census: { phase: BettingPhase, rank: number, count: number } | null
 }
 
 // Malus "Rivière agitée" : la carte du tableau emportée par la river
@@ -64,7 +65,7 @@ export interface RiverSwap {
   replacement: Card
 }
 
-const NO_BONUS_USED: BonusUsage = { swappedBy: null, revealed: null, spyglass: null, mastermind: null, highestRank: null, lowestRank: null, deadCards: null, compass: null, spied: null, redLantern: null }
+const NO_BONUS_USED: BonusUsage = { swappedBy: null, revealed: null, spyglass: null, mastermind: null, highestRank: null, lowestRank: null, deadCards: null, compass: null, spied: null, redLantern: null, census: null }
 
 export class Game {
   phase: Phase = 'lobby'
@@ -420,6 +421,24 @@ export class Game {
     const worst = hands.reduce((a, b) => (compareHands(a.hand, b.hand) <= 0 ? a : b)).hand
     const seatIds = hands.filter(({ hand }) => compareHands(hand, worst) === 0).map(({ seat }) => seat.id)
     this.bonusUsage.redLantern = { phase: this.phase as BettingPhase, seatIds }
+  }
+
+  // Bonus "Recensement" encore dispo ?
+  requireCensus(): void {
+    this.requireBonus('census')
+    if (this.bonusUsage.census)
+      throw new GameError('Le recensement a déjà été utilisé cette manche.')
+  }
+
+  // Bonus "Recensement" : combien de cartes de cette valeur sont encore dans la pioche
+  useCensus(playerId: string, rank: number): void {
+    this.requireCensus()
+    this.requirePlayer(playerId)
+    if (!Number.isInteger(rank) || rank < 2 || rank > 14)
+      throw new GameError('Valeur invalide.')
+
+    const count = this.deck.filter(card => card.rank === rank).length
+    this.bonusUsage.census = { phase: this.phase as BettingPhase, rank, count }
   }
 
   // Classement avec le tableau du moment et les positions du tour en cours (0 pour qui n'est pas placé)

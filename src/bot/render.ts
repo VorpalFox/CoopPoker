@@ -24,6 +24,7 @@ export const BUTTON_IDS = {
   compass: `${BUTTON_PREFIX}:compass`,
   spy: `${BUTTON_PREFIX}:spy`,
   redLantern: `${BUTTON_PREFIX}:redLantern`,
+  census: `${BUTTON_PREFIX}:census`,
   mountain: `${BUTTON_PREFIX}:mountain`,
   bilge: `${BUTTON_PREFIX}:bilge`,
   deadCards: `${BUTTON_PREFIX}:deadCards`,
@@ -31,6 +32,8 @@ export const BUTTON_IDS = {
 export const POSITION_BUTTON_ID = (position: number) => `${BUTTON_PREFIX}:pos:${position}`
 // Choix de la carte à échanger / montrer (cp:swap:0, cp:reveal:1...)
 export const CARD_CHOICE_ID = (kind: CardChoiceKind, cardIndex: number) => `${BUTTON_PREFIX}:${kind}:${cardIndex}`
+// Choix de la valeur à recenser (cp:census:13 pour les rois)
+export const RANK_CHOICE_ID = (rank: number) => `${BUTTON_IDS.census}:${rank}`
 // Choix du joueur visé (cp:compass:<id du joueur>)
 export const PLAYER_CHOICE_ID = (kind: PlayerChoiceKind, playerId: string) => `${BUTTON_PREFIX}:${kind}:${playerId}`
 
@@ -141,6 +144,12 @@ export function renderPlayerChoice(kind: PlayerChoiceKind, targets: { id: string
   return { content: PLAYER_CHOICE_QUESTIONS[kind], components: rows(buttons) }
 }
 
+// Réponse privée du bonus Recensement : on choisit la valeur
+export function renderRankChoice(): BaseMessageOptions {
+  const buttons = Array.from({ length: 13 }, (_, i) => button(RANK_CHOICE_ID(i + 2), rankLabel(i + 2), ButtonStyle.Primary))
+  return { content: '🧮 Quelle valeur veux-tu recenser dans la pioche ?', components: rows(buttons) }
+}
+
 // Numéro de la manche en cours (ou qui vient de se finir à l'abattage)
 export function handNumber(game: Game): number {
   return game.wins + game.losses + (game.phase === 'showdown' ? 0 : 1)
@@ -235,7 +244,7 @@ function addHistory(embed: EmbedBuilder, game: Game): void {
 }
 
 function addBonusUsage(embed: EmbedBuilder, game: Game): void {
-  const { swappedBy, revealed, spyglass, mastermind, highestRank, lowestRank, deadCards, compass, spied, redLantern } = game.bonusUsage
+  const { swappedBy, revealed, spyglass, mastermind, highestRank, lowestRank, deadCards, compass, spied, redLantern, census } = game.bonusUsage
   const nameOf = (seatId: string) => escapeMarkdown(game.seats.find(seat => seat.id === seatId)?.name ?? '?')
 
   const lines: string[] = []
@@ -261,6 +270,8 @@ function addBonusUsage(embed: EmbedBuilder, game: Game): void {
     const tie = redLantern.seatIds.length > 1 ? ' (ex-aequo)' : ''
     lines.push(`🏮 Au ${PHASE_LABELS[redLantern.phase].toLowerCase()}, la pire main : **${redLantern.seatIds.map(nameOf).join(' et ')}**${tie}`)
   }
+  if (census)
+    lines.push(`🧮 Au ${PHASE_LABELS[census.phase].toLowerCase()}, cartes de valeur **${rankName(census.rank)}** encore dans la pioche : **${census.count}**`)
   if (lines.length > 0)
     embed.addFields({ name: '😇 Bonus utilisés', value: lines.join('\n') })
 }
@@ -358,7 +369,7 @@ function tableButtons(game: Game): ActionRowBuilder<ButtonBuilder>[] {
 
 // Un bouton par bonus actif pas encore utilisé
 function bonusButtons(game: Game): ButtonBuilder[] {
-  const { swappedBy, revealed, spyglass, mastermind, highestRank, lowestRank, deadCards, compass, spied, redLantern } = game.bonusUsage
+  const { swappedBy, revealed, spyglass, mastermind, highestRank, lowestRank, deadCards, compass, spied, redLantern, census } = game.bonusUsage
   const beforeFlop = game.board.length < 3
   const buttons: ButtonBuilder[] = []
   if (game.hasEffect('swap') && !swappedBy)
@@ -381,6 +392,8 @@ function bonusButtons(game: Game): ButtonBuilder[] {
     buttons.push(button(BUTTON_IDS.spy, '🕵️ Espionner', ButtonStyle.Primary))
   if (game.hasEffect('redLantern') && !redLantern)
     buttons.push(button(BUTTON_IDS.redLantern, '🏮 Lanterne rouge', ButtonStyle.Primary).setDisabled(beforeFlop))
+  if (game.hasEffect('census') && !census)
+    buttons.push(button(BUTTON_IDS.census, '🧮 Recensement', ButtonStyle.Primary))
   return buttons
 }
 

@@ -59,6 +59,7 @@ Le même effet n'est jamais actif deux fois. Si tous ceux d'une sorte le sont d�
 | 🧭 | Boussole | Une fois, à partir du flop, on choisit un joueur placé et le bot dit à la table s'il est bien ou mal placé avec le tableau du moment (même règle d'égalité que 🎯 Mastermind). |
 | 🕵️ | Espion | Le premier qui clique choisit un autre joueur : une de ses cartes, tirée au hasard, est montrée à toute la table. |
 | 🏮 | Lanterne rouge | Une fois, à partir du flop, le bot dit qui a la pire main avec le tableau du moment (tous les ex-aequo s'il y en a, 👻 Fantôme compris). |
+| 🧮 | Recensement | Une fois, on choisit une valeur (2 à As) et le bot dit à la table combien de cartes de cette valeur sont encore dans la pioche. |
 | 🍀 | Seconde chance | À la fin, une seule inversion entre deux joueurs voisins est pardonnée. |
 | ⛰️ | Montagne | Une fois, le bot annonce la plus haute carte en main, valeur seulement, sans dire qui l'a. |
 | ⚓ | Fond de cale | Une fois, le bot annonce la plus basse carte en main, valeur seulement, sans dire qui l'a. |
