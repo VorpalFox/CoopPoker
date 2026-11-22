@@ -17,6 +17,7 @@ export interface ShowdownEntry extends ShowdownPlayer {
 
 export interface ShowdownResult {
   success: boolean
+  rescued: boolean // gagné grâce à la seconde chance
   entries: ShowdownEntry[] // triées par position
 }
 
@@ -35,5 +36,16 @@ export function evaluateShowdown(players: ShowdownPlayer[], board: Card[]): Show
     })
     .sort((a, b) => a.position - b.position)
 
-  return { success: entries.every(entry => entry.correct), entries }
+  return { success: entries.every(entry => entry.correct), rescued: false, entries }
+}
+
+// Seconde chance : exactement deux joueurs mal placés, voisins, et les inverser rend le classement bon
+export function isSingleAdjacentSwap(entries: ShowdownEntry[]): boolean {
+  const wrong = entries.filter(entry => !entry.correct)
+  if (wrong.length !== 2)
+    return false
+
+  const [a, b] = wrong
+  const fits = (entry: ShowdownEntry, position: number) => position >= entry.bestRank && position <= entry.worstRank
+  return Math.abs(a.position - b.position) === 1 && fits(a, b.position) && fits(b, a.position)
 }

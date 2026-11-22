@@ -9,7 +9,8 @@ describe('Game', () => {
   let game: Game
 
   beforeEach(() => {
-    game = new Game(() => parseCards(RIGGED_DECK))
+    // hasard figé : toujours le 1er effet de la liste (noLock en malus, swap en bonus)
+    game = new Game(() => parseCards(RIGGED_DECK), () => 0)
     game.join('alice', 'Alice')
     game.join('bob', 'Bob')
   })
@@ -143,8 +144,8 @@ describe('Game', () => {
 
     game.advance()
 
-    expect(game.findPlayer('alice')?.history).toEqual([{ position: 1, locked: true }])
-    expect(game.findPlayer('bob')?.history).toEqual([{ position: 2, locked: false }])
+    expect(game.findPlayer('alice')?.history).toEqual([{ phase: 'preflop', position: 1, locked: true }])
+    expect(game.findPlayer('bob')?.history).toEqual([{ phase: 'preflop', position: 2, locked: false }])
     expect(game.findPlayer('alice')?.locked).toBe(false)
   })
 

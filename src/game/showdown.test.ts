@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { parseCards } from './cards.js'
-import { evaluateShowdown } from './showdown.js'
+import { evaluateShowdown, isSingleAdjacentSwap } from './showdown.js'
 
 const BOARD = parseCards('2c 7d 9h Js 4c')
 
@@ -46,6 +46,36 @@ describe('evaluateShowdown', () => {
     ], BOARD)
 
     expect(result.success).toBe(false)
+  })
+
+  it('isSingleAdjacentSwap_DeuxVoisinsInverses_Vrai', () => {
+    const result = evaluateShowdown([
+      player('Paire', 'Ah Ad', 2),
+      player('Roi', 'Kh 3d', 1),
+      player('Dame', 'Qs 5s', 3),
+    ], BOARD)
+
+    expect(isSingleAdjacentSwap(result.entries)).toBe(true)
+  })
+
+  it('isSingleAdjacentSwap_InversionPasVoisine_Faux', () => {
+    const result = evaluateShowdown([
+      player('Paire', 'Ah Ad', 3),
+      player('Roi', 'Kh 3d', 2),
+      player('Dame', 'Qs 5s', 1),
+    ], BOARD)
+
+    expect(isSingleAdjacentSwap(result.entries)).toBe(false)
+  })
+
+  it('isSingleAdjacentSwap_TroisErreurs_Faux', () => {
+    const result = evaluateShowdown([
+      player('Paire', 'Ah Ad', 2),
+      player('Roi', 'Kh 3d', 3),
+      player('Dame', 'Qs 5s', 1),
+    ], BOARD)
+
+    expect(isSingleAdjacentSwap(result.entries)).toBe(false)
   })
 
   it('evaluateShowdown_ResultatTrieParPosition', () => {

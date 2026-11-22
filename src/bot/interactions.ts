@@ -1,24 +1,43 @@
-import { type ButtonInteraction, type ChatInputCommandInteraction, type Interaction, MessageFlags, type RepliableInteraction, type SendableChannels } from 'discord.js'
-import { Game, GameError } from '../game/game.js'
+import { type ButtonInteraction, type ChatInputCommandInteraction, type Interaction, type Message, MessageFlags, type RepliableInteraction, type SendableChannels } from 'discord.js'
+import { TIMER_SECONDS_PER_PLAYER } from '../game/effects.js'
+import { Game, GameError, type Seat } from '../game/game.js'
 import { COMMAND_NAME } from './commands.js'
-import { BUTTON_PREFIX, renderHandRanking, renderHoleCards, renderInfo, renderTable } from './render.js'
+import { BUTTON_PREFIX, STEP_SEPARATOR, type CardChoiceKind, type PlayerChoiceKind, renderCardChoice, renderHandRanking, renderHoleCards, renderDuelChoice, renderInfo, renderKingChoice, renderPlayerChoice, renderRankChoice, renderTable } from './render.js'
 
-// Une manche = 2 messages dans le salon : les infos fixes de la manche (règles, n° de manche, score)
+// Une manche = 2 messages dans le salon : les infos fixes de la manche (règles, n° de manche, score, bonus / malus)
 // et la table juste en dessous, modifiée sur place à chaque clic. Chaque nouvelle manche reposte les 2.
 interface TableSession {
+  channelId: string
   game: Game
+  tableMessage: Message | null // pour modifier la table sans clic dessus (chrono, choix de carte)
   // dernier clic "Mes cartes" de chaque joueur pour la manche en cours. Discord laisse le bot
   // modifier la réponse cachée pendant 15 min : on s'en sert pour la mettre à jour à chaque tour.
   cardViews: Map<string, ButtonInteraction>
+  // malus "Chrono"
+  timer: NodeJS.Timeout | null
+  deadline: number | null
 }
 
 // Une table par salon, gardée en mémoire (perdue au redémarrage du bot, c'est assumé)
 const sessions = new Map<string, TableSession>()
 
+// File d'attente par salon : les clics simultanés sont traités l'un après l'autre, pour que les mises à jour
+// de la table partent dans l'ordre (sinon une table périmée peut arriver après la bonne et l'écraser)
+const queues = new Map<string, Promise<void>>()
+
+function inQueue(channelId: string, task: () => Promise<void>): Promise<void> {
+  const run = (queues.get(channelId) ?? Promise.resolve()).then(task)
+  queues.set(channelId, run.catch(() => {}))
+  return run
+}
+
 export async function handleInteraction(interaction: Interaction): Promise<void> {
   if (!interaction.isRepliable())
     return
+  await inQueue(interaction.channelId ?? '', () => dispatch(interaction))
+}
 
+async function dispatch(interaction: RepliableInteraction): Promise<void> {
   try {
     if (interaction.isChatInputCommand() && interaction.commandName === COMMAND_NAME)
       await handleCommand(interaction)
@@ -27,7 +46,14 @@ export async function handleInteraction(interaction: Interaction): Promise<void>
   } catch (error) {
     if (!(error instanceof GameError))
       throw error
-    await interaction.reply({ content: `⚠️ ${error.message}`, flags: MessageFlags.Ephemeral })
+    // clic qui n'a plus lieu d'être (un autre joueur a été plus rapide) : on acquitte sans rien changer
+    if (interaction.isButton() && !error.shown) {
+      if (!interaction.replied && !interaction.deferred)
+        await interaction.deferUpdate()
+      return
+    }
+    const message = { content: `⚠️ ${error.message}`, flags: MessageFlags.Ephemeral } as const
+    await (interaction.replied || interaction.deferred ? interaction.followUp(message) : interaction.reply(message))
   }
 }
 
@@ -40,26 +66,35 @@ async function handleCommand(interaction: ChatInputCommandInteraction): Promise<
         throw new GameError('Il y a déjà une table dans ce salon (`/poker table` pour la réafficher, `/poker stop` pour la fermer).')
       const game = new Game()
       game.join(interaction.user.id, displayName(interaction))
-      sessions.set(channelId, { game, cardViews: new Map() })
+      sessions.set(channelId, { channelId, game, tableMessage: null, cardViews: new Map(), timer: null, deadline: null })
       await interaction.reply(renderTable(game))
       return
     }
-    case 'table':
-      await interaction.reply(renderTable(requireSession(channelId).game))
+    case 'table': {
+      const session = requireSession(channelId)
+      const response = await interaction.reply({ ...table(session), withResponse: true })
+      session.tableMessage = response.resource?.message ?? session.tableMessage
       return
-    case 'stop':
-      requireSession(channelId)
+    }
+    case 'stop': {
+      const session = requireSession(channelId)
+      stopTimer(session)
       sessions.delete(channelId)
       await interaction.reply('🛑 Table fermée.')
       return
+    }
   }
 }
 
 async function handleButton(interaction: ButtonInteraction): Promise<void> {
-  const [, action, arg] = interaction.customId.split(':')
+  const [buttonId, step] = interaction.customId.split(STEP_SEPARATOR)
+  const [, action, arg, secondArg] = buttonId.split(':')
 
   // l'aide marche pour tout le monde, même sans partie en cours
   if (action === 'help') {
+    // malus "Lourde est la couronne" : le roi ne regarde plus les aides
+    if (sessions.get(interaction.channelId)?.game.isKing(interaction.user.id))
+      throw new GameError('👑 Le roi ne regarde plus les aides : ses sujets s\'en chargent.', true)
     await interaction.reply({ ...renderHandRanking(), flags: MessageFlags.Ephemeral })
     return
   }
@@ -67,6 +102,12 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
   const session = requireSession(interaction.channelId)
   const { game } = session
   const userId = interaction.user.id
+
+  // bouton d'une étape passée (le tour a changé entre-temps) : rien à faire
+  if (step !== undefined && Number(step) !== game.step) {
+    await interaction.deferUpdate()
+    return
+  }
 
   switch (action) {
     case 'join':
@@ -77,13 +118,19 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
       game.leave(userId)
       await interaction.update(renderTable(game))
       return
+    case 'chaos':
+      game.requirePlayer(userId)
+      game.toggleChaos()
+      await interaction.update(renderTable(game))
+      return
     case 'start':
       game.requirePlayer(userId)
       game.start()
+      startRoundTimer(session)
       // le salon d'attente devient le rappel des règles, la table s'affiche juste en dessous
       await interaction.update(renderInfo(game))
-      await requireChannel(interaction).send(renderTable(game))
       session.cardViews.clear() // nouvelle manche : chacun re-clique sur "Mes cartes"
+      session.tableMessage = await requireChannel(interaction).send(table(session))
       return
     case 'cards':
       await interaction.reply({ ...renderHoleCards(game, game.requirePlayer(userId)), flags: MessageFlags.Ephemeral })
@@ -91,18 +138,57 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
       return
     case 'pos':
       game.takePosition(userId, Number(arg))
-      await interaction.update(renderTable(game))
+      await updateTable(interaction, session)
       return
     case 'lock':
       game.lock(userId)
-      await interaction.update(renderTable(game))
+      await updateTable(interaction, session)
       return
     case 'next':
-      game.requirePlayer(userId)
+      game.requireActor(userId)
       game.advance()
-      await interaction.update(renderTable(game))
-      if (game.phase !== 'showdown')
-        await refreshCardViews(session)
+      startRoundTimer(session)
+      await updateTable(interaction, session)
+      await refreshAfterAdvance(session)
+      return
+    case 'king':
+      await handleKingChoice(interaction, session, arg)
+      return
+    case 'swap':
+    case 'reveal':
+      await handleCardChoice(interaction, session, action, arg)
+      return
+    case 'compass':
+    case 'spy':
+    case 'duel':
+      await handlePlayerChoice(interaction, session, action, arg, secondArg)
+      return
+    case 'census':
+      await handleRankChoice(interaction, session, arg)
+      return
+    case 'spyglass':
+      game.useSpyglass(userId)
+      await updateTable(interaction, session)
+      return
+    case 'mastermind':
+      game.useMastermind(userId)
+      await updateTable(interaction, session)
+      return
+    case 'mountain':
+      game.useMountain(userId)
+      await updateTable(interaction, session)
+      return
+    case 'bilge':
+      game.useBilge(userId)
+      await updateTable(interaction, session)
+      return
+    case 'deadCards':
+      game.useDeadCards(userId)
+      await updateTable(interaction, session)
+      return
+    case 'redLantern':
+      game.useRedLantern(userId)
+      await updateTable(interaction, session)
       return
     case 'replay': {
       game.requirePlayer(userId)
@@ -110,20 +196,193 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
       // puis on reposte les 2 messages de la nouvelle manche en dessous
       const finishedHand = renderTable(game, { withButtons: false })
       game.start()
+      startRoundTimer(session)
       await interaction.update(finishedHand)
+      session.cardViews.clear() // nouvelle manche : chacun re-clique sur "Mes cartes"
       const channel = requireChannel(interaction)
       await channel.send(renderInfo(game))
-      await channel.send(renderTable(game))
-      session.cardViews.clear() // nouvelle manche : chacun re-clique sur "Mes cartes"
+      session.tableMessage = await channel.send(table(session))
       return
     }
   }
 }
 
-// Met à jour les messages cachés avec le nouveau tableau et la meilleure main de chacun.
+// Bonus Échange / Révélation, en 2 clics : le bouton de la table ouvre un choix caché, puis on choisit la carte
+async function handleCardChoice(interaction: ButtonInteraction, session: TableSession, kind: CardChoiceKind, cardIndex: string | undefined): Promise<void> {
+  const { game } = session
+  const player = game.requireActor(interaction.user.id)
+
+  if (cardIndex === undefined) {
+    game.requireCardBonus(kind)
+    await interaction.reply({ ...renderCardChoice(game, player, kind), flags: MessageFlags.Ephemeral })
+    return
+  }
+
+  try {
+    if (kind === 'swap')
+      game.swapCard(player.id, Number(cardIndex))
+    else
+      game.revealCard(player.id, Number(cardIndex))
+  } catch (error) {
+    if (!(error instanceof GameError) || error.shown)
+      throw error
+    // quelqu'un a pris le bonus entre-temps : on retire juste le choix de carte devenu inutile
+    await interaction.deferUpdate()
+    await interaction.deleteReply()
+    return
+  }
+  await interaction.update(renderHoleCards(game, player))
+  await editTable(session)
+  if (kind === 'swap')
+    await refreshCardViews(session)
+}
+
+// Bonus Boussole / Espion / Duel : le bouton de la table ouvre un choix caché, puis on choisit le joueur
+// (le Duel en demande un 2e)
+async function handlePlayerChoice(interaction: ButtonInteraction, session: TableSession, kind: PlayerChoiceKind, targetId: string | undefined, secondId: string | undefined): Promise<void> {
+  const { game } = session
+  const player = game.requireActor(interaction.user.id)
+
+  if (targetId === undefined) {
+    await interaction.reply({ ...renderPlayerChoice(kind, playerChoiceTargets(game, kind, player.id)), flags: MessageFlags.Ephemeral })
+    return
+  }
+
+  if (kind === 'duel' && secondId === undefined) {
+    const targets = game.duelTargets()
+    const first = targets.find(seat => seat.id === targetId)
+    if (!first)
+      throw new GameError('Ce joueur n\'est plus à la table.')
+    await interaction.update(renderDuelChoice(first, targets))
+    return
+  }
+
+  await useFromChoice(interaction, session, () => {
+    switch (kind) {
+      case 'compass':
+        return game.useCompass(player.id, targetId)
+      case 'spy':
+        return game.useSpy(player.id, targetId)
+      case 'duel':
+        return game.useDuel(player.id, targetId, secondId!)
+    }
+  })
+}
+
+function playerChoiceTargets(game: Game, kind: PlayerChoiceKind, playerId: string): Seat[] {
+  switch (kind) {
+    case 'compass':
+      return game.compassTargets()
+    case 'spy':
+      return game.spyTargets(playerId)
+    case 'duel':
+      return game.duelTargets()
+  }
+}
+
+// Bonus Recensement, en 2 clics : le bouton de la table ouvre un choix caché, puis on choisit la valeur
+async function handleRankChoice(interaction: ButtonInteraction, session: TableSession, rank: string | undefined): Promise<void> {
+  const { game } = session
+  const player = game.requireActor(interaction.user.id)
+
+  if (rank === undefined) {
+    game.requireCensus()
+    await interaction.reply({ ...renderRankChoice(), flags: MessageFlags.Ephemeral })
+    return
+  }
+
+  await useFromChoice(interaction, session, () => game.useCensus(player.id, Number(rank)))
+}
+
+// 2e clic d'un choix caché : on utilise le bonus, puis le choix ne sert plus (aussi quand quelqu'un
+// a pris le bonus entre-temps) : on le retire, la réponse est sur la table
+async function useFromChoice(interaction: ButtonInteraction, session: TableSession, use: () => void): Promise<void> {
+  try {
+    use()
+  } catch (error) {
+    if (!(error instanceof GameError) || error.shown)
+      throw error
+  }
+  await interaction.deferUpdate()
+  await interaction.deleteReply()
+  await editTable(session)
+}
+
+// Malus "Lourde est la couronne" : le bouton de la table ouvre un choix caché pour placer le roi.
+// Le choix reste ouvert et se met à jour, pour pouvoir le déplacer plusieurs fois.
+async function handleKingChoice(interaction: ButtonInteraction, session: TableSession, position: string | undefined): Promise<void> {
+  const { game } = session
+  const userId = interaction.user.id
+
+  if (position === undefined) {
+    game.requireActor(userId)
+    await interaction.reply({ ...renderKingChoice(game), flags: MessageFlags.Ephemeral })
+    return
+  }
+
+  game.placeKing(userId, Number(position))
+  await interaction.update(renderKingChoice(game))
+  await editTable(session)
+}
+
+// La table sur laquelle on vient de cliquer : on la modifie et on retient ce message
+async function updateTable(interaction: ButtonInteraction, session: TableSession): Promise<void> {
+  await interaction.update(table(session))
+  session.tableMessage = interaction.message
+}
+
+// La table quand le clic vient d'ailleurs (chrono, choix de carte en message caché)
+async function editTable(session: TableSession): Promise<void> {
+  await session.tableMessage?.edit(table(session))
+    .catch(error => console.warn('Table introuvable, pas mise à jour', error))
+}
+
+function table(session: TableSession) {
+  return renderTable(session.game, { deadline: session.deadline })
+}
+
+// Malus "Chrono" : relancé à chaque tour, coupé hors manche ou sans le malus
+function startRoundTimer(session: TableSession): void {
+  stopTimer(session)
+  const { game } = session
+  if (!game.isBetting || !game.hasEffect('timer'))
+    return
+
+  const duration = TIMER_SECONDS_PER_PLAYER * 1000 * game.players.length
+  session.deadline = Date.now() + duration
+  session.timer = setTimeout(() => {
+    inQueue(session.channelId, () => onTimeout(session)).catch(error => console.error('Erreur à la fin du chrono', error))
+  }, duration)
+}
+
+function stopTimer(session: TableSession): void {
+  if (session.timer)
+    clearTimeout(session.timer)
+  session.timer = null
+  session.deadline = null
+}
+
+async function onTimeout(session: TableSession): Promise<void> {
+  session.game.timeout()
+  startRoundTimer(session)
+  await editTable(session)
+  await refreshAfterAdvance(session)
+}
+
+// "Mes cartes" suit le changement de tour : nouvelle main (main instable) ou cartes masquées (roi couronné)
+async function refreshAfterAdvance(session: TableSession): Promise<void> {
+  const { game } = session
+  if (game.reshuffle?.phase === game.phase || game.crown?.phase === game.phase)
+    await refreshCardViews(session)
+}
+
+// Met à jour les messages cachés "Mes cartes" (après un Échange, la carte a changé).
 // Au-delà de 15 min Discord refuse : on oublie ce message, le joueur re-cliquera sur "Mes cartes".
 async function refreshCardViews(session: TableSession): Promise<void> {
   const { game, cardViews } = session
+  if (!game.isBetting)
+    return
+
   await Promise.all([...cardViews].map(async ([playerId, cardsClick]) => {
     const player = game.findPlayer(playerId)
     if (!player)
@@ -139,7 +398,7 @@ async function refreshCardViews(session: TableSession): Promise<void> {
 function requireSession(channelId: string): TableSession {
   const session = sessions.get(channelId)
   if (!session)
-    throw new GameError('Pas de table dans ce salon, ouvre-en une avec `/poker create`.')
+    throw new GameError('Pas de table dans ce salon, ouvre-en une avec `/poker create`.', true)
   return session
 }
 
